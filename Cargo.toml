@@ -1,7 +1,8 @@
 [package]
-name = "wikitype-api-graphql"
+name = "wikitype_api_graphql"
 version = "0.1.0"
 authors = ["krepl <36075613+krepl@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
+juniper = "0.11"
