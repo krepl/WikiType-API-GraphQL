@@ -1,1 +1,4 @@
-use juniper::FieldResult;
+#[macro_use]
+extern crate diesel;
+
+pub mod database;
