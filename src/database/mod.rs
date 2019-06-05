@@ -1,10 +1,27 @@
-//! TODO
+//! A basic [data access layer] for WikiType, including models for WikiType data types and [data
+//! access objects] for a handful of SQL and NoSQL databases.
+//!
+//! [data access layer]: https://en.wikipedia.org/wiki/Data_access_layer
+//! [data access objects]: https://en.wikipedia.org/wiki/Data_access_object
 
-/// Database agnostic models for WikiType data.
+/// Database-agnostic models for WikiType data.
 pub mod models;
 
-/// TODO
+/// SQL data access layer.
 pub mod sql;
+
+use std::result;
+
+/// TODO
+#[derive(Debug)]
+pub enum Error {
+    SqlError(diesel::result::Error),
+    SqlConnectionError(diesel::result::ConnectionError),
+    // TODO
+    //NoSqlError(),
+}
+
+type Result<T> = result::Result<T, Error>;
 
 ///// TODO
 //pub mod nosql {
