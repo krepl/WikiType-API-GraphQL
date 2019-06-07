@@ -4,15 +4,17 @@
 //! [data access layer]: https://en.wikipedia.org/wiki/Data_access_layer
 //! [data access objects]: https://en.wikipedia.org/wiki/Data_access_object
 
+use std::result;
+
 /// Database-agnostic models for WikiType data.
 pub mod models;
 
-/// SQL data access layer.
+/// SQL data access.
 pub mod sql;
 
-use std::result;
-
-/// TODO
+/// Error type returned by databases-related functions.
+///
+/// TODO: Elaborate on the types of errors?
 #[derive(Debug)]
 pub enum Error {
     SqlError(diesel::result::Error),
@@ -21,7 +23,8 @@ pub enum Error {
     //NoSqlError(),
 }
 
-type Result<T> = result::Result<T, Error>;
+/// Result type returned by databases-related functions.
+pub type Result<T> = result::Result<T, Error>;
 
 ///// TODO
 //pub mod nosql {

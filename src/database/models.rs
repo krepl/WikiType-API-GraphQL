@@ -1,5 +1,4 @@
 use super::sql::schema::exercises;
-
 use crate::database;
 
 /// A [data access object] for exercises.

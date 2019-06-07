@@ -5,7 +5,7 @@ const ALBATROSS_BODY: &'static str =
 
 fn main() {
     use wikitype_api_graphql::database::models::ExerciseDao;
-    use wikitype_api_graphql::database::sql::postgres::PostgresExerciseDao;
+    use wikitype_api_graphql::database::sql::PostgresExerciseDao;
 
     let dao = PostgresExerciseDao::new();
 
