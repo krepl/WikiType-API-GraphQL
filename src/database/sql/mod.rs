@@ -82,8 +82,7 @@ impl<'a, Conn, DB: 'static> DeleteById<&'a str, Exercise> for Conn
 where
     Conn: Connection<Backend = DB>,
     Conn: for<'b> FindById<&'b str, Exercise>,
-    DB: Backend<RawValue = [u8]>,
-    DB: UsesAnsiSavepointSyntax,
+    DB: Backend,
 {
     fn delete_by_id(&self, id: &'a str) -> Result<Exercise> {
         let exercise = self.find_by_id(id);
