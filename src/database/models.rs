@@ -24,17 +24,23 @@ pub trait DeleteById<ID, R> {
 
 /// A [data access object] for exercises.
 ///
-/// Current implementors include `diesel::PgConnection` and `diesel::MysqlConnection`.
+/// Current implementors include
+/// - `diesel::PgConnection`
+/// - `diesel::MysqlConnection`
+/// - `diesel::r2d2::PooledConnection`
 ///
 /// [data access object]: https://en.wikipedia.org/wiki/Data_access_object
 ///
 /// # Examples
 ///
 /// ```
+/// use database::models::{Exercise, ExerciseDao, NewExercise, UpdatedExercise, Uuid};
 /// use diesel::prelude::*;
+/// use diesel::r2d2;
 /// use dotenv::dotenv;
 /// use std::env;
-/// use wikitype_api_graphql::database::models::{ExerciseDao, NewExercise, UpdatedExercise, Uuid};
+/// use std::thread;
+/// use wikitype_api_graphql::database;
 ///
 /// const ALBATROSS_BODY: &'static str =
 ///     "Albatrosses, of the biological family Diomedeidae, are large seabirds related to the \
@@ -78,6 +84,25 @@ pub trait DeleteById<ID, R> {
 ///     .expect("Failed to create Albatross exercise.");
 /// println!("{:#?}", exercise);
 ///
+/// // Demonstrate use of r2d2::PooledConnection<M> as an ExerciseDao.
+/// let manager: r2d2::ConnectionManager<PgConnection> = r2d2::ConnectionManager::new(database_url);
+/// let pool = r2d2::Pool::builder().max_size(10).build(manager).unwrap();
+///
+/// let join_handles: Vec<thread::JoinHandle<database::Result<Exercise>>> = (0..20)
+///     .map(|_| {
+///         let pool = pool.clone();
+///         let exercise = exercise.clone();
+///         thread::spawn(move || {
+///             let conn: &dyn ExerciseDao = &pool.get().unwrap();
+///             conn.find_by_id(&exercise.id)
+///         })
+///     })
+///     .collect();
+///
+/// for jh in join_handles {
+///     assert_eq!(jh.join().unwrap(), Ok(exercise.clone()));
+/// }
+///
 /// // Delete the exercise.
 /// let deleted_exercise = dao
 ///     .delete_by_id(&exercise.id)
@@ -87,9 +112,7 @@ pub trait DeleteById<ID, R> {
 /// let exercise = dao.find_by_id(&exercise.id);
 /// assert_eq!(
 ///     exercise,
-///     Err(wikitype_api_graphql::database::Error::SqlError(
-///         diesel::result::Error::NotFound
-///     ))
+///     Err(database::Error::SqlError(diesel::result::Error::NotFound))
 /// );
 /// ```
 pub trait ExerciseDao:
@@ -133,7 +156,7 @@ impl fmt::Display for Uuid {
 }
 
 /// Representation for exercises.
-#[derive(Queryable, Debug, Eq, PartialEq)]
+#[derive(Queryable, Debug, Eq, PartialEq, Clone)]
 pub struct Exercise {
     /// UUID string.
     pub id: String,

@@ -1,5 +1,3 @@
-// TODO: Make use of diesel::r2d2 support for connection pooling.
-
 use crate::database;
 use database::models::{
     Create, DeleteById, Exercise, ExerciseDao, FindById, NewExercise, Update, UpdatedExercise,
@@ -8,7 +6,6 @@ use database::Error::SqlError;
 use database::Result;
 use diesel::backend::{Backend, SupportsDefaultKeyword, UsesAnsiSavepointSyntax};
 use diesel::prelude::*;
-use diesel::query_dsl::UpdateAndFetchResults;
 use schema::*;
 
 /// Auto-generated module created by Diesel from the schema defined by the migrations in
@@ -30,7 +27,6 @@ pub mod schema;
 impl<'a, Conn, DB: 'static> ExerciseDao for Conn
 where
     Conn: for<'b> FindById<&'b str, Exercise>,
-    Conn: for<'b> UpdateAndFetchResults<&'b UpdatedExercise<'b>, Exercise>,
     Conn: Connection<Backend = DB>,
     DB: Backend<RawValue = [u8]>,
     DB: SupportsDefaultKeyword,
@@ -68,13 +64,17 @@ where
 
 impl<'a, Conn, DB: 'static> Update<&'a UpdatedExercise<'a>, Exercise> for Conn
 where
+    Conn: for<'b> FindById<&'b str, Exercise>,
     Conn: Connection<Backend = DB>,
-    Conn: for<'b> UpdateAndFetchResults<&'b UpdatedExercise<'b>, Exercise>,
     DB: Backend,
     DB: SupportsDefaultKeyword,
 {
     fn update(&self, obj: &'a UpdatedExercise<'a>) -> Result<Exercise> {
-        obj.save_changes(self).map_err(SqlError)
+        diesel::update(exercises::table)
+            .set(obj)
+            .execute(self)
+            .map_err(SqlError)
+            .and_then(|_| self.find_by_id(obj.id))
     }
 }
 
