@@ -15,7 +15,7 @@ pub mod sql;
 /// Error type returned by databases-related functions.
 ///
 /// TODO: Elaborate on the types of errors?
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Error {
     SqlError(diesel::result::Error),
     SqlConnectionError(diesel::result::ConnectionError),

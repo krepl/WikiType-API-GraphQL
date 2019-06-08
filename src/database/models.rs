@@ -1,22 +1,103 @@
 use super::sql::schema::exercises;
-use crate::database;
+use crate::database::Result;
+use std::fmt;
+
+/// Generic create operation.
+pub trait Create<T, R> {
+    fn create(&self, obj: T) -> Result<R>;
+}
+
+/// Generic find-by-id operation.
+pub trait FindById<ID, R> {
+    fn find_by_id(&self, id: ID) -> Result<R>;
+}
+
+/// Generic update operation.
+pub trait Update<T, R> {
+    fn update(&self, obj: T) -> Result<R>;
+}
+
+/// Generic delete operation.
+pub trait DeleteById<ID, R> {
+    fn delete_by_id(&self, id: ID) -> Result<R>;
+}
 
 /// A [data access object] for exercises.
 ///
+/// Current implementors include `diesel::PgConnection` and `diesel::MysqlConnection`.
+///
 /// [data access object]: https://en.wikipedia.org/wiki/Data_access_object
-pub trait ExerciseDao {
-    fn create_exercise<'a>(
-        &self,
-        title: &'a str,
-        body: &'a str,
-        topic: Option<&'a str>,
-    ) -> database::Result<Exercise>;
-
-    fn get_exercise_by_id<'a>(&self, id: &'a str) -> database::Result<Exercise>;
-
-    fn get_exercise_by_title<'a>(&self, title: &'a str) -> database::Result<Exercise>;
-
-    // TODO: finish CRUD operations
+///
+/// # Examples
+///
+/// ```
+/// use diesel::prelude::*;
+/// use dotenv::dotenv;
+/// use std::env;
+/// use wikitype_api_graphql::database::models::{ExerciseDao, NewExercise, UpdatedExercise, Uuid};
+///
+/// const ALBATROSS_BODY: &'static str =
+///     "Albatrosses, of the biological family Diomedeidae, are large seabirds related to the \
+///      procellariids, storm petrels, and diving petrels in the order Procellariiformes (the \
+///      tubenoses).";
+///
+/// // Connect to a Postgres database.
+/// //
+/// // NOTE: This database should already contain the `exercises` table. Otherwise, run the
+/// // migrations against the database.
+/// //
+/// // i.e.
+/// //     $ diesel migration run
+/// dotenv().ok();
+///
+/// let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+/// let dao: &dyn ExerciseDao = &PgConnection::establish(&database_url)
+///     .expect(&format!("Error connecting to database {}.", database_url));
+///
+/// // Create a new exercise.
+/// let id = Uuid::new();
+/// let new_exercise = NewExercise::new(&id, "Albatross", ALBATROSS_BODY, None);
+///
+/// // Insert the new exercise into the database.
+/// let exercise = dao
+///     .create(&new_exercise)
+///     .expect("Failed to create Albatross exercise.");
+/// println!("{:#?}", exercise);
+///
+/// // Create an updated exercise.
+/// let updated_exercise = UpdatedExercise {
+///     id: &exercise.id,
+///     title: Some("Alabatross new"),
+///     body: None,
+///     topic: Some("It's a topic!"),
+/// };
+///
+/// // Update the exercise.
+/// let exercise = dao
+///     .update(&updated_exercise)
+///     .expect("Failed to create Albatross exercise.");
+/// println!("{:#?}", exercise);
+///
+/// // Delete the exercise.
+/// let deleted_exercise = dao
+///     .delete_by_id(&exercise.id)
+///     .expect("Failed to create Albatross exercise.");
+/// assert_eq!(exercise, deleted_exercise);
+///
+/// let exercise = dao.find_by_id(&exercise.id);
+/// assert_eq!(
+///     exercise,
+///     Err(wikitype_api_graphql::database::Error::SqlError(
+///         diesel::result::Error::NotFound
+///     ))
+/// );
+/// ```
+pub trait ExerciseDao:
+    for<'a> Create<&'a NewExercise<'a>, Exercise>
+    + for<'a> FindById<&'a str, Exercise>
+    + for<'a> Update<&'a UpdatedExercise<'a>, Exercise>
+    + for<'a> DeleteById<&'a str, Exercise>
+{
 }
 
 /// [Version 4 UUID].
@@ -45,6 +126,12 @@ impl Uuid {
     }
 }
 
+impl fmt::Display for Uuid {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.id)
+    }
+}
+
 /// Representation for exercises.
 #[derive(Queryable, Debug, Eq, PartialEq)]
 pub struct Exercise {
@@ -70,17 +157,23 @@ pub struct Exercise {
     //pub modified_on: ...,
 }
 
-/// TODO
+/// Type for creating a new `Exercise`.
 #[derive(Insertable)]
 #[table_name = "exercises"]
 pub struct NewExercise<'a> {
-    pub id: &'a str,
+    id: &'a str,
     pub title: &'a str,
     pub body: &'a str,
     pub topic: Option<&'a str>,
     // TODO
     //created_on: ...,
     //modified_on: ...,
+}
+
+impl<'a> NewExercise<'a> {
+    pub fn get_id(&self) -> &'a str {
+        &self.id
+    }
 }
 
 impl<'a> NewExercise<'a> {
@@ -98,4 +191,17 @@ impl<'a> NewExercise<'a> {
             topic,
         }
     }
+}
+
+/// Type for updating an `Exercise`.
+#[derive(AsChangeset, Identifiable)]
+#[table_name = "exercises"]
+pub struct UpdatedExercise<'a> {
+    pub id: &'a str,
+    pub title: Option<&'a str>,
+    pub body: Option<&'a str>,
+    pub topic: Option<&'a str>,
+    // TODO
+    //created_on: ...,
+    //modified_on: ...,
 }
