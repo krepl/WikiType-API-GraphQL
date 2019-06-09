@@ -8,6 +8,11 @@ use diesel::backend::{Backend, SupportsDefaultKeyword, UsesAnsiSavepointSyntax};
 use diesel::prelude::*;
 use schema::*;
 
+pub use diesel::mysql::MysqlConnection;
+pub use diesel::pg::PgConnection;
+pub use diesel::r2d2::ConnectionManager;
+pub use diesel::r2d2::PooledConnection;
+
 /// Auto-generated module created by Diesel from the schema defined by the migrations in
 /// "migrations/" for the purpose of constructing and validating SQL queries at compile-time.
 ///

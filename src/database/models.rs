@@ -277,6 +277,7 @@ pub struct UpdatedExercise<'a> {
     modified_on: i64,
 }
 
+/// Type for creating an `UpdatedExercise`.
 pub struct UpdatedExerciseBuilder<'a> {
     exercise: UpdatedExercise<'a>,
 }

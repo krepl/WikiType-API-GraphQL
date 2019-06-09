@@ -9,7 +9,7 @@ use std::result;
 /// Database-agnostic models for WikiType data.
 pub mod models;
 
-/// SQL data access.
+/// SQL schemas and DAO implementations.
 pub mod sql;
 
 /// Error type returned by databases-related functions.
