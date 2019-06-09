@@ -74,7 +74,7 @@ where
             .set(obj)
             .execute(self)
             .map_err(SqlError)
-            .and_then(|_| self.find_by_id(obj.id))
+            .and_then(|_| self.find_by_id(&obj.id))
     }
 }
 

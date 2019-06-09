@@ -1,4 +1,4 @@
-use database::models::{Exercise, ExerciseDao, NewExercise, UpdatedExercise, Uuid};
+use database::models::{Exercise, ExerciseDao, NewExercise, UpdatedExerciseBuilder, Uuid};
 use diesel::prelude::*;
 use diesel::r2d2;
 use dotenv::dotenv;
@@ -36,12 +36,10 @@ fn main() {
     println!("{:#?}", exercise);
 
     // Create an updated exercise.
-    let updated_exercise = UpdatedExercise {
-        id: &exercise.id,
-        title: Some("Alabatross new"),
-        body: None,
-        topic: Some("It's a topic!"),
-    };
+    let updated_exercise = UpdatedExerciseBuilder::new(&exercise)
+        .title("Alabatross new")
+        .topic(Some("It's a topic!"))
+        .build();
 
     // Update the exercise.
     let exercise = dao

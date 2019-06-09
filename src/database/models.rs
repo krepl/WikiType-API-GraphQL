@@ -1,5 +1,7 @@
 use super::sql::schema::exercises;
 use crate::database::Result;
+use chrono::offset::Utc;
+use chrono::DateTime;
 use std::fmt;
 
 /// Generic create operation.
@@ -34,7 +36,7 @@ pub trait DeleteById<ID, R> {
 /// # Examples
 ///
 /// ```
-/// use database::models::{Exercise, ExerciseDao, NewExercise, UpdatedExercise, Uuid};
+/// use database::models::{Exercise, ExerciseDao, NewExercise, UpdatedExerciseBuilder, Uuid};
 /// use diesel::prelude::*;
 /// use diesel::r2d2;
 /// use dotenv::dotenv;
@@ -71,12 +73,10 @@ pub trait DeleteById<ID, R> {
 /// println!("{:#?}", exercise);
 ///
 /// // Create an updated exercise.
-/// let updated_exercise = UpdatedExercise {
-///     id: &exercise.id,
-///     title: Some("Alabatross new"),
-///     body: None,
-///     topic: Some("It's a topic!"),
-/// };
+/// let updated_exercise = UpdatedExerciseBuilder::new(&exercise)
+///     .title("Alabatross new")
+///     .topic(Some("It's a topic!"))
+///     .build();
 ///
 /// // Update the exercise.
 /// let exercise = dao
@@ -149,6 +149,59 @@ impl Uuid {
     }
 }
 
+/// Timestamp representing the number of non-leap seconds since January 1, 1970 0:00:00 UTC (aka
+/// "UNIX timestamp").
+///
+/// See <https://docs.rs/chrono/0.4.6/chrono/struct.DateTime.html#method.timestamp>.
+pub struct EpochTime(i64);
+
+impl EpochTime {
+    /// Returns the EpochTime for the current time.
+    pub fn now() -> EpochTime {
+        let now = Utc::now();
+        Self::from_utc(now)
+    }
+
+    /// Convert a `DateTime<Utc>` to an `EpochTime`.
+    ///
+    /// See <https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp>.
+    pub fn from_utc(utc: DateTime<Utc>) -> EpochTime {
+        EpochTime(utc.timestamp())
+    }
+
+    /// Convert an `EpochTime` to a `DateTime<Utc>`.
+    ///
+    /// See <https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp>.
+    pub fn to_utc(&self) -> DateTime<Utc> {
+        use chrono::offset::TimeZone;
+        Utc.timestamp(self.0, 0)
+    }
+
+    /// Convert an i64 UNIX timestamp to an `EpochTime`.
+    ///
+    /// Returns None if the conversion failed.
+    ///
+    /// See <https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp_opt>.
+    pub fn from_timestamp(t: i64) -> Option<DateTime<Utc>> {
+        use chrono::offset::LocalResult;
+        use chrono::offset::TimeZone;
+        match Utc.timestamp_opt(t, 0) {
+            LocalResult::None => None,
+            LocalResult::Single(t) => Some(t),
+            LocalResult::Ambiguous(_, _) => None,
+        }
+    }
+
+    /// Convert an `EpochTime` to an i64 UNIX timestamp.
+    ///
+    /// Returns None if the conversion failed.
+    ///
+    /// See <https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp_opt>.
+    pub fn to_timestamp(&self) -> i64 {
+        self.0
+    }
+}
+
 impl fmt::Display for Uuid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.id)
@@ -171,13 +224,12 @@ pub struct Exercise {
     ///
     /// See <https://en.wikipedia.org/wiki/Portal:Contents/Portals> for an idea.
     pub topic: Option<String>,
-    // TODO
-    //
-    // NOTE: You can use a created_on date and a created_on time to separate out the fields. You
-    // can have separate fields for year, month, day, etc. ...
-    //
-    //pub created_on: ...,
-    //pub modified_on: ...,
+
+    /// Creation time in seconds since the epoch.
+    pub created_on: i64,
+
+    /// Modification time in seconds since the epoch.
+    pub modified_on: i64,
 }
 
 /// Type for creating a new `Exercise`.
@@ -188,9 +240,8 @@ pub struct NewExercise<'a> {
     pub title: &'a str,
     pub body: &'a str,
     pub topic: Option<&'a str>,
-    // TODO
-    //created_on: ...,
-    //modified_on: ...,
+    created_on: i64,
+    modified_on: i64,
 }
 
 impl<'a> NewExercise<'a> {
@@ -207,24 +258,66 @@ impl<'a> NewExercise<'a> {
         topic: Option<&'a str>,
     ) -> NewExercise<'a> {
         let id = &id.id;
+        let created_on = EpochTime::now().to_timestamp();
+        let modified_on = created_on;
         NewExercise {
             id,
             title,
             body,
             topic,
+            created_on,
+            modified_on,
         }
     }
 }
 
 /// Type for updating an `Exercise`.
-#[derive(AsChangeset, Identifiable)]
+#[derive(AsChangeset, Identifiable, Clone)]
 #[table_name = "exercises"]
 pub struct UpdatedExercise<'a> {
-    pub id: &'a str,
+    pub id: String,
     pub title: Option<&'a str>,
     pub body: Option<&'a str>,
-    pub topic: Option<&'a str>,
-    // TODO
-    //created_on: ...,
-    //modified_on: ...,
+    pub topic: Option<Option<&'a str>>,
+    created_on: i64,
+    modified_on: i64,
+}
+
+pub struct UpdatedExerciseBuilder<'a> {
+    exercise: UpdatedExercise<'a>,
+}
+
+impl<'a> UpdatedExerciseBuilder<'a> {
+    pub fn new(exercise: &Exercise) -> UpdatedExerciseBuilder<'a> {
+        UpdatedExerciseBuilder {
+            exercise: UpdatedExercise {
+                id: exercise.id.clone(),
+                title: None,
+                body: None,
+                topic: None,
+                created_on: exercise.created_on,
+                modified_on: exercise.modified_on,
+            },
+        }
+    }
+
+    pub fn title(&mut self, title: &'a str) -> &mut UpdatedExerciseBuilder<'a> {
+        self.exercise.title = Some(title);
+        self
+    }
+
+    pub fn body(&mut self, body: &'a str) -> &mut UpdatedExerciseBuilder<'a> {
+        self.exercise.body = Some(body);
+        self
+    }
+
+    pub fn topic(&mut self, topic: Option<&'a str>) -> &mut UpdatedExerciseBuilder<'a> {
+        self.exercise.topic = Some(topic);
+        self
+    }
+
+    pub fn build(&mut self) -> UpdatedExercise<'a> {
+        self.exercise.modified_on = EpochTime::now().to_timestamp();
+        self.exercise.clone()
+    }
 }
