@@ -3,6 +3,6 @@ CREATE TABLE exercises (
     title VARCHAR NOT NULL,
     body TEXT NOT NULL,
     topic VARCHAR,
-    created_on BIGINT NOT NULL,
-    modified_on BIGINT NOT NULL
+    created_on TIMESTAMP NOT NULL,
+    modified_on TIMESTAMP NOT NULL
 )

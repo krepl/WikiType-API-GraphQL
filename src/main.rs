@@ -1,11 +1,12 @@
 use database::ExerciseDao;
+use wikitype_api::database;
+use wikitype_api::models::{Exercise, NewExerciseBuilder, UpdatedExerciseBuilder};
+
 use diesel::prelude::*;
 use diesel::r2d2;
 use dotenv::dotenv;
 use std::env;
 use std::thread;
-use wikitype_api::database;
-use wikitype_api::models::{Exercise, NewExerciseBuilder, UpdatedExerciseBuilder};
 
 const ALBATROSS_BODY: &'static str =
     "Albatrosses, of the biological family Diomedeidae, are large seabirds related to the \

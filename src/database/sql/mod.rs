@@ -30,22 +30,24 @@ pub mod schema;
 // See https://doc.rust-lang.org/book/ch19-02-advanced-lifetimes.html#lifetime-bounds-on-references-to-generic-types.
 
 /// Blanket `ExerciseDao` implementation for SQL backends.
-impl<'a, Conn, DB: 'static> ExerciseDao for Conn
+impl<Conn, DB: 'static> ExerciseDao for Conn
 where
-    Conn: for<'b> FindById<&'b str, Exercise>,
+    Conn: for<'a> FindById<&'a str, Exercise>,
     Conn: Connection<Backend = DB>,
     DB: Backend<RawValue = [u8]>,
     DB: SupportsDefaultKeyword,
     DB: UsesAnsiSavepointSyntax,
+    chrono::NaiveDateTime: diesel::serialize::ToSql<diesel::sql_types::Timestamp, DB>,
 {
 }
 
-impl<'a, Conn, DB: 'static> Create<&'a NewExercise<'a>, Exercise> for Conn
+impl<'a, Conn, DB: 'static> Create<&'a NewExercise, Exercise> for Conn
 where
     Conn: for<'b> FindById<&'b str, Exercise>,
     Conn: Connection<Backend = DB>,
     DB: Backend,
     DB: SupportsDefaultKeyword,
+    chrono::NaiveDateTime: diesel::serialize::ToSql<diesel::sql_types::Timestamp, DB>,
 {
     fn create(&self, obj: &NewExercise) -> database::Result<Exercise> {
         diesel::insert_into(exercises::table)
@@ -62,6 +64,7 @@ where
     Conn: Connection<Backend = DB>,
     DB: Backend<RawValue = [u8]>,
     DB: UsesAnsiSavepointSyntax,
+    chrono::NaiveDateTime: diesel::deserialize::FromSql<diesel::sql_types::Timestamp, DB>,
 {
     fn find_by_id(&self, id: &'a str) -> database::Result<Exercise> {
         exercises::table.find(id).first(self).map_err(SqlError)
@@ -74,6 +77,7 @@ where
     Conn: Connection<Backend = DB>,
     DB: Backend,
     DB: SupportsDefaultKeyword,
+    chrono::NaiveDateTime: diesel::serialize::ToSql<diesel::sql_types::Timestamp, DB>,
 {
     fn update(&self, obj: &'a UpdatedExercise<'a>) -> database::Result<Exercise> {
         diesel::update(exercises::table)
@@ -137,8 +141,8 @@ where
 ///     .create(&new_exercise)
 ///     .expect("Failed to create Albatross exercise.");
 /// assert_eq!(&exercise.id, new_exercise.get_id());
-/// assert_eq!(&exercise.title, new_exercise.title);
-/// assert_eq!(&exercise.body, new_exercise.body);
+/// assert_eq!(exercise.title, new_exercise.title);
+/// assert_eq!(exercise.body, new_exercise.body);
 /// assert_eq!(exercise.topic.is_none(), new_exercise.topic.is_none());
 ///
 /// // Delete the exercise.
@@ -157,7 +161,7 @@ pub struct SqliteConnection(pub diesel::SqliteConnection);
 
 impl ExerciseDao for SqliteConnection {}
 
-impl<'a> Create<&'a NewExercise<'a>, Exercise> for SqliteConnection {
+impl<'a> Create<&'a NewExercise, Exercise> for SqliteConnection {
     fn create(&self, obj: &NewExercise) -> database::Result<Exercise> {
         diesel::insert_into(exercises::table)
             .values(obj)

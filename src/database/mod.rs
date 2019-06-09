@@ -1,4 +1,5 @@
 use crate::models::{Exercise, NewExercise, UpdatedExercise};
+
 use std::result;
 
 /// SQL schemas and DAO implementations.
@@ -105,8 +106,8 @@ pub trait DeleteById<ID, R> {
 ///     .create(&new_exercise)
 ///     .expect("Failed to create Albatross exercise.");
 /// assert_eq!(&exercise.id, new_exercise.get_id());
-/// assert_eq!(&exercise.title, new_exercise.title);
-/// assert_eq!(&exercise.body, new_exercise.body);
+/// assert_eq!(exercise.title, new_exercise.title);
+/// assert_eq!(exercise.body, new_exercise.body);
 /// assert_eq!(exercise.topic.is_none(), new_exercise.topic.is_none());
 ///
 /// // Create an updated exercise.
@@ -157,7 +158,7 @@ pub trait DeleteById<ID, R> {
 /// );
 /// ```
 pub trait ExerciseDao:
-    for<'a> Create<&'a NewExercise<'a>, Exercise>
+    for<'a> Create<&'a NewExercise, Exercise>
     + for<'a> FindById<&'a str, Exercise>
     + for<'a> Update<&'a UpdatedExercise<'a>, Exercise>
     + for<'a> DeleteById<&'a str, Exercise>
