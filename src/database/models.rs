@@ -30,6 +30,7 @@ pub trait DeleteById<ID, R> {
 /// - `diesel::PgConnection`
 /// - `diesel::MysqlConnection`
 /// - `diesel::r2d2::PooledConnection`
+/// - `wikitype_api_graphql::database::sql::SqliteConnection`
 ///
 /// [data access object]: https://en.wikipedia.org/wiki/Data_access_object
 ///
