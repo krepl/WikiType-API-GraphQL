@@ -1,17 +1,17 @@
 use crate::database;
-use database::models::{
-    Create, DeleteById, Exercise, ExerciseDao, FindById, NewExercise, Update, UpdatedExercise,
-};
+use crate::models::{Exercise, NewExercise, UpdatedExercise};
 use database::Error::SqlError;
-use database::Result;
+use database::{Create, DeleteById, ExerciseDao, FindById, Update};
+
 use diesel::backend::{Backend, SupportsDefaultKeyword, UsesAnsiSavepointSyntax};
 use diesel::prelude::*;
-use schema::*;
 
 pub use diesel::mysql::MysqlConnection;
 pub use diesel::pg::PgConnection;
 pub use diesel::r2d2::ConnectionManager;
 pub use diesel::r2d2::PooledConnection;
+
+use schema::*;
 
 /// Auto-generated module created by Diesel from the schema defined by the migrations in
 /// "migrations/" for the purpose of constructing and validating SQL queries at compile-time.
@@ -47,7 +47,7 @@ where
     DB: Backend,
     DB: SupportsDefaultKeyword,
 {
-    fn create(&self, obj: &NewExercise) -> Result<Exercise> {
+    fn create(&self, obj: &NewExercise) -> database::Result<Exercise> {
         diesel::insert_into(exercises::table)
             .values(obj)
             .execute(self)
@@ -63,7 +63,7 @@ where
     DB: Backend<RawValue = [u8]>,
     DB: UsesAnsiSavepointSyntax,
 {
-    fn find_by_id(&self, id: &'a str) -> Result<Exercise> {
+    fn find_by_id(&self, id: &'a str) -> database::Result<Exercise> {
         exercises::table.find(id).first(self).map_err(SqlError)
     }
 }
@@ -75,7 +75,7 @@ where
     DB: Backend,
     DB: SupportsDefaultKeyword,
 {
-    fn update(&self, obj: &'a UpdatedExercise<'a>) -> Result<Exercise> {
+    fn update(&self, obj: &'a UpdatedExercise<'a>) -> database::Result<Exercise> {
         diesel::update(exercises::table)
             .set(obj)
             .execute(self)
@@ -90,7 +90,7 @@ where
     Conn: for<'b> FindById<&'b str, Exercise>,
     DB: Backend,
 {
-    fn delete_by_id(&self, id: &'a str) -> Result<Exercise> {
+    fn delete_by_id(&self, id: &'a str) -> database::Result<Exercise> {
         let exercise = self.find_by_id(id);
         diesel::delete(exercises::table.find(id))
             .execute(self)
@@ -105,9 +105,10 @@ where
 /// # Examples
 ///
 /// ```
-/// use database::models::{Exercise, ExerciseDao, NewExerciseBuilder};
+/// use database::ExerciseDao;
 /// use diesel::prelude::*;
 /// use wikitype_api::database;
+/// use wikitype_api::models::{Exercise, NewExerciseBuilder};
 ///
 /// const ALBATROSS_BODY: &'static str =
 ///     "Albatrosses, of the biological family Diomedeidae, are large seabirds related to the \
@@ -157,7 +158,7 @@ pub struct SqliteConnection(pub diesel::SqliteConnection);
 impl ExerciseDao for SqliteConnection {}
 
 impl<'a> Create<&'a NewExercise<'a>, Exercise> for SqliteConnection {
-    fn create(&self, obj: &NewExercise) -> Result<Exercise> {
+    fn create(&self, obj: &NewExercise) -> database::Result<Exercise> {
         diesel::insert_into(exercises::table)
             .values(obj)
             .execute(&self.0)
@@ -168,13 +169,13 @@ impl<'a> Create<&'a NewExercise<'a>, Exercise> for SqliteConnection {
 }
 
 impl<'a> FindById<&'a str, Exercise> for SqliteConnection {
-    fn find_by_id(&self, id: &'a str) -> Result<Exercise> {
+    fn find_by_id(&self, id: &'a str) -> database::Result<Exercise> {
         exercises::table.find(id).first(&self.0).map_err(SqlError)
     }
 }
 
 impl<'a> Update<&'a UpdatedExercise<'a>, Exercise> for SqliteConnection {
-    fn update(&self, obj: &'a UpdatedExercise<'a>) -> Result<Exercise> {
+    fn update(&self, obj: &'a UpdatedExercise<'a>) -> database::Result<Exercise> {
         diesel::update(exercises::table)
             .set(obj)
             .execute(&self.0)
@@ -184,7 +185,7 @@ impl<'a> Update<&'a UpdatedExercise<'a>, Exercise> for SqliteConnection {
 }
 
 impl<'a> DeleteById<&'a str, Exercise> for SqliteConnection {
-    fn delete_by_id(&self, id: &'a str) -> Result<Exercise> {
+    fn delete_by_id(&self, id: &'a str) -> database::Result<Exercise> {
         let exercise = self.find_by_id(id);
         diesel::delete(exercises::table.find(id))
             .execute(&self.0)
