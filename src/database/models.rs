@@ -149,29 +149,29 @@ impl Uuid {
     }
 }
 
-/// Timestamp representing the number of non-leap seconds since January 1, 1970 0:00:00 UTC (aka
-/// "UNIX timestamp").
+/// UNIX epoch timestamp.
 ///
-/// See <https://docs.rs/chrono/0.4.6/chrono/struct.DateTime.html#method.timestamp>.
+/// An `EpochTime` is a timestamp represented as the number of non-leap seconds since January 1,
+/// 1970 0:00:00 UTC.
+///
+/// See also,
+/// - [`chrono::Datetime::timestamp`](https://docs.rs/chrono/0.4.6/chrono/struct.DateTime.html#method.timestamp)
+/// - [`chrono::offset::TimeZone`](https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp)
 pub struct EpochTime(i64);
 
 impl EpochTime {
-    /// Returns the EpochTime for the current time.
+    /// Returns the `EpochTime` for the current time.
     pub fn now() -> EpochTime {
         let now = Utc::now();
         Self::from_utc(now)
     }
 
     /// Convert a `DateTime<Utc>` to an `EpochTime`.
-    ///
-    /// See <https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp>.
     pub fn from_utc(utc: DateTime<Utc>) -> EpochTime {
         EpochTime(utc.timestamp())
     }
 
     /// Convert an `EpochTime` to a `DateTime<Utc>`.
-    ///
-    /// See <https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp>.
     pub fn to_utc(&self) -> DateTime<Utc> {
         use chrono::offset::TimeZone;
         Utc.timestamp(self.0, 0)
@@ -180,8 +180,6 @@ impl EpochTime {
     /// Convert an i64 UNIX timestamp to an `EpochTime`.
     ///
     /// Returns None if the conversion failed.
-    ///
-    /// See <https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp_opt>.
     pub fn from_timestamp(t: i64) -> Option<DateTime<Utc>> {
         use chrono::offset::LocalResult;
         use chrono::offset::TimeZone;
@@ -193,10 +191,6 @@ impl EpochTime {
     }
 
     /// Convert an `EpochTime` to an i64 UNIX timestamp.
-    ///
-    /// Returns None if the conversion failed.
-    ///
-    /// See <https://docs.rs/chrono/0.4.6/chrono/offset/trait.TimeZone.html#method.timestamp_opt>.
     pub fn to_timestamp(&self) -> i64 {
         self.0
     }
