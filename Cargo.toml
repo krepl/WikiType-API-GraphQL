@@ -1,5 +1,5 @@
 [package]
-name = "wikitype_api_graphql"
+name = "wikitype_api"
 version = "0.1.0"
 authors = ["krepl <36075613+krepl@users.noreply.github.com>"]
 edition = "2018"
@@ -9,3 +9,4 @@ diesel = { version = "1.4.2", features = ["sqlite", "postgres", "mysql", "r2d2"]
 dotenv = "0.14.1"
 uuid = { version = "0.7.4", features = ["v4"] }
 chrono = "0.4"
+juniper = "0.11"

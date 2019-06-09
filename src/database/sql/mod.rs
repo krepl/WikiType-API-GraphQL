@@ -107,7 +107,7 @@ where
 /// ```
 /// use database::models::{Exercise, ExerciseDao, NewExerciseBuilder};
 /// use diesel::prelude::*;
-/// use wikitype_api_graphql::database;
+/// use wikitype_api::database;
 ///
 /// const ALBATROSS_BODY: &'static str =
 ///     "Albatrosses, of the biological family Diomedeidae, are large seabirds related to the \

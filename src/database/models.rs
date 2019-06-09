@@ -30,7 +30,7 @@ pub trait DeleteById<ID, R> {
 /// - `diesel::PgConnection`
 /// - `diesel::MysqlConnection`
 /// - `diesel::r2d2::PooledConnection`
-/// - `wikitype_api_graphql::database::sql::SqliteConnection`
+/// - `wikitype_api::database::sql::SqliteConnection`
 ///
 /// [data access object]: https://en.wikipedia.org/wiki/Data_access_object
 ///
@@ -43,7 +43,7 @@ pub trait DeleteById<ID, R> {
 /// use dotenv::dotenv;
 /// use std::env;
 /// use std::thread;
-/// use wikitype_api_graphql::database;
+/// use wikitype_api::database;
 ///
 /// const ALBATROSS_BODY: &'static str =
 ///     "Albatrosses, of the biological family Diomedeidae, are large seabirds related to the \
@@ -258,7 +258,7 @@ impl<'a> NewExercise<'a> {
 /// # Examples
 ///
 /// ```
-/// use wikitype_api_graphql::database::models::{NewExerciseBuilder};
+/// use wikitype_api::database::models::{NewExerciseBuilder};
 ///
 /// // Create an updated exercise.
 /// let new_exercise = NewExerciseBuilder::new()
@@ -341,7 +341,7 @@ impl<'a> UpdatedExercise<'a> {
 /// # Examples
 ///
 /// ```
-/// use wikitype_api_graphql::database::models::{Exercise, Uuid, UpdatedExerciseBuilder};
+/// use wikitype_api::database::models::{Exercise, Uuid, UpdatedExerciseBuilder};
 ///
 /// // Create an initial exercise.
 /// let exercise = Exercise {

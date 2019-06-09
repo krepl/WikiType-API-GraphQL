@@ -4,7 +4,7 @@ use diesel::r2d2;
 use dotenv::dotenv;
 use std::env;
 use std::thread;
-use wikitype_api_graphql::database;
+use wikitype_api::database;
 
 const ALBATROSS_BODY: &'static str =
     "Albatrosses, of the biological family Diomedeidae, are large seabirds related to the \
