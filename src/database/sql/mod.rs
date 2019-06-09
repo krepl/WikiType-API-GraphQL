@@ -105,7 +105,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use database::models::{Exercise, ExerciseDao, NewExercise, Uuid};
+/// use database::models::{Exercise, ExerciseDao, NewExerciseBuilder};
 /// use diesel::prelude::*;
 /// use wikitype_api_graphql::database;
 ///
@@ -126,14 +126,19 @@ where
 /// let dao: &dyn ExerciseDao = &dao;
 ///
 /// // Create a new exercise.
-/// let id = Uuid::new();
-/// let new_exercise = NewExercise::new(&id, "Albatross", ALBATROSS_BODY, None);
+/// let new_exercise = NewExerciseBuilder::new()
+///     .title("Albatross")
+///     .body(ALBATROSS_BODY)
+///     .build();
 ///
 /// // Insert the new exercise into the database.
 /// let exercise = dao
 ///     .create(&new_exercise)
 ///     .expect("Failed to create Albatross exercise.");
-/// println!("{:#?}", exercise);
+/// assert_eq!(&exercise.id, new_exercise.get_id());
+/// assert_eq!(&exercise.title, new_exercise.title);
+/// assert_eq!(&exercise.body, new_exercise.body);
+/// assert_eq!(exercise.topic.is_none(), new_exercise.topic.is_none());
 ///
 /// // Delete the exercise.
 /// let deleted_exercise = dao

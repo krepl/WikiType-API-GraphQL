@@ -1,4 +1,4 @@
-use database::models::{Exercise, ExerciseDao, NewExercise, UpdatedExerciseBuilder, Uuid};
+use database::models::{Exercise, ExerciseDao, NewExerciseBuilder, UpdatedExerciseBuilder};
 use diesel::prelude::*;
 use diesel::r2d2;
 use dotenv::dotenv;
@@ -26,8 +26,10 @@ fn main() {
         .expect(&format!("Error connecting to database {}.", database_url));
 
     // Create a new exercise.
-    let id = Uuid::new();
-    let new_exercise = NewExercise::new(&id, "Albatross", ALBATROSS_BODY, None);
+    let new_exercise = NewExerciseBuilder::new()
+        .title("Albatross")
+        .body(ALBATROSS_BODY)
+        .build();
 
     // Insert the new exercise into the database.
     let exercise = dao

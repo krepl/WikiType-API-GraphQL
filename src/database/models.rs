@@ -37,7 +37,7 @@ pub trait DeleteById<ID, R> {
 /// # Examples
 ///
 /// ```
-/// use database::models::{Exercise, ExerciseDao, NewExercise, UpdatedExerciseBuilder, Uuid};
+/// use database::models::{Exercise, ExerciseDao, NewExerciseBuilder, UpdatedExerciseBuilder};
 /// use diesel::prelude::*;
 /// use diesel::r2d2;
 /// use dotenv::dotenv;
@@ -64,8 +64,10 @@ pub trait DeleteById<ID, R> {
 ///     .expect(&format!("Error connecting to database {}.", database_url));
 ///
 /// // Create a new exercise.
-/// let id = Uuid::new();
-/// let new_exercise = NewExercise::new(&id, "Albatross", ALBATROSS_BODY, None);
+/// let new_exercise = NewExerciseBuilder::new()
+///     .title("Albatross")
+///     .body(ALBATROSS_BODY)
+///     .build();
 ///
 /// // Insert the new exercise into the database.
 /// let exercise = dao
@@ -237,7 +239,7 @@ pub struct Exercise {
 #[derive(Insertable)]
 #[table_name = "exercises"]
 pub struct NewExercise<'a> {
-    id: &'a str,
+    id: String,
     pub title: &'a str,
     pub body: &'a str,
     pub topic: Option<&'a str>,
@@ -251,21 +253,66 @@ impl<'a> NewExercise<'a> {
     }
 }
 
-impl<'a> NewExercise<'a> {
-    pub fn new(
-        id: &'a Uuid,
-        title: &'a str,
-        body: &'a str,
-        topic: Option<&'a str>,
-    ) -> NewExercise<'a> {
-        let id = &id.id;
+/// Type for creating a `NewExercise`.
+///
+/// # Examples
+///
+/// ```
+/// use wikitype_api_graphql::database::models::{NewExerciseBuilder};
+///
+/// // Create an updated exercise.
+/// let new_exercise = NewExerciseBuilder::new()
+///     .title("Albatross")
+///     .body("Albatross body")
+///     .topic("It's a topic!")
+///     .build();
+///
+/// assert_eq!(new_exercise.title, "Albatross");
+/// assert_eq!(new_exercise.body, "Albatross body");
+/// assert_eq!(new_exercise.topic, Some("It's a topic!"));
+/// ```
+pub struct NewExerciseBuilder<'a> {
+    id: String,
+    title: Option<&'a str>,
+    body: Option<&'a str>,
+    topic: Option<&'a str>,
+}
+
+impl<'a> NewExerciseBuilder<'a> {
+    pub fn new() -> NewExerciseBuilder<'a> {
+        NewExerciseBuilder {
+            id: Uuid::new().to_string(),
+            title: None,
+            body: None,
+            topic: None,
+        }
+    }
+
+    pub fn title(&mut self, title: &'a str) -> &mut NewExerciseBuilder<'a> {
+        self.title = Some(title);
+        self
+    }
+
+    pub fn body(&mut self, body: &'a str) -> &mut NewExerciseBuilder<'a> {
+        self.body = Some(body);
+        self
+    }
+
+    pub fn topic(&mut self, topic: &'a str) -> &mut NewExerciseBuilder<'a> {
+        self.topic = Some(topic);
+        self
+    }
+
+    pub fn build(&mut self) -> NewExercise<'a> {
+        let title = self.title.expect("Missing exercise title.");
+        let body = self.body.expect("Missing exercise body.");
         let created_on = EpochTime::now().to_timestamp();
         let modified_on = created_on;
         NewExercise {
-            id,
+            id: self.id.clone(),
             title,
             body,
-            topic,
+            topic: self.topic,
             created_on,
             modified_on,
         }
