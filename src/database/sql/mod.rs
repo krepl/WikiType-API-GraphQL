@@ -80,7 +80,7 @@ where
             .set(obj)
             .execute(self)
             .map_err(SqlError)
-            .and_then(|_| self.find_by_id(&obj.id))
+            .and_then(|_| self.find_by_id(&obj.get_id()))
     }
 }
 
@@ -174,7 +174,7 @@ impl<'a> Update<&'a UpdatedExercise<'a>, Exercise> for SqliteConnection {
             .set(obj)
             .execute(&self.0)
             .map_err(SqlError)
-            .and_then(|_| self.find_by_id(&obj.id))
+            .and_then(|_| self.find_by_id(&obj.get_id()))
     }
 }
 

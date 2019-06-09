@@ -59,7 +59,7 @@ pub trait DeleteById<ID, R> {
 /// //     $ diesel migration run
 /// dotenv().ok();
 ///
-/// let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+/// let database_url = env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set");
 /// let dao: &dyn ExerciseDao = &PgConnection::establish(&database_url)
 ///     .expect(&format!("Error connecting to database {}.", database_url));
 ///
@@ -71,11 +71,14 @@ pub trait DeleteById<ID, R> {
 /// let exercise = dao
 ///     .create(&new_exercise)
 ///     .expect("Failed to create Albatross exercise.");
-/// println!("{:#?}", exercise);
+/// assert_eq!(&exercise.id, new_exercise.get_id());
+/// assert_eq!(&exercise.title, new_exercise.title);
+/// assert_eq!(&exercise.body, new_exercise.body);
+/// assert_eq!(exercise.topic.is_none(), new_exercise.topic.is_none());
 ///
 /// // Create an updated exercise.
 /// let updated_exercise = UpdatedExerciseBuilder::new(&exercise)
-///     .title("Alabatross new")
+///     .title("Albatross new")
 ///     .topic(Some("It's a topic!"))
 ///     .build();
 ///
@@ -83,7 +86,10 @@ pub trait DeleteById<ID, R> {
 /// let exercise = dao
 ///     .update(&updated_exercise)
 ///     .expect("Failed to create Albatross exercise.");
-/// println!("{:#?}", exercise);
+/// assert_eq!(updated_exercise.get_id(), &exercise.id);
+/// assert_eq!(&exercise.title, "Albatross new");
+/// assert_eq!(&exercise.body, ALBATROSS_BODY);
+/// assert_eq!(exercise.topic, Some(String::from("It's a topic!")));
 ///
 /// // Demonstrate use of r2d2::PooledConnection<M> as an ExerciseDao.
 /// let manager: r2d2::ConnectionManager<PgConnection> = r2d2::ConnectionManager::new(database_url);
@@ -240,7 +246,7 @@ pub struct NewExercise<'a> {
 }
 
 impl<'a> NewExercise<'a> {
-    pub fn get_id(&self) -> &'a str {
+    pub fn get_id(&self) -> &str {
         &self.id
     }
 }
@@ -270,15 +276,45 @@ impl<'a> NewExercise<'a> {
 #[derive(AsChangeset, Identifiable, Clone)]
 #[table_name = "exercises"]
 pub struct UpdatedExercise<'a> {
-    pub id: String,
+    id: String,
     pub title: Option<&'a str>,
     pub body: Option<&'a str>,
     pub topic: Option<Option<&'a str>>,
-    created_on: i64,
     modified_on: i64,
 }
 
+impl<'a> UpdatedExercise<'a> {
+    pub fn get_id(&self) -> &str {
+        &self.id
+    }
+}
+
 /// Type for creating an `UpdatedExercise`.
+///
+/// # Examples
+///
+/// ```
+/// use wikitype_api_graphql::database::models::{Exercise, Uuid, UpdatedExerciseBuilder};
+///
+/// // Create an initial exercise.
+/// let exercise = Exercise {
+///     id: Uuid::new().to_string(),
+///     title: String::from(""),
+///     body: String::from(""),
+///     topic: None,
+///     created_on: 0,
+///     modified_on: 0,
+/// };
+///
+/// // Create an updated exercise.
+/// let updated_exercise = UpdatedExerciseBuilder::new(&exercise)
+///     .title("Alabatross new")
+///     .topic(Some("It's a topic!"))
+///     .build();
+///
+/// assert_eq!(exercise.id, updated_exercise.get_id());
+/// assert_eq!(None, updated_exercise.body);
+/// ```
 pub struct UpdatedExerciseBuilder<'a> {
     exercise: UpdatedExercise<'a>,
 }
@@ -291,7 +327,6 @@ impl<'a> UpdatedExerciseBuilder<'a> {
                 title: None,
                 body: None,
                 topic: None,
-                created_on: exercise.created_on,
                 modified_on: exercise.modified_on,
             },
         }
