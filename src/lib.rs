@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate diesel;
 
+#[macro_use]
+extern crate juniper;
+
 /// A basic [data access layer] for WikiType, including [data access objects] for a handful of SQL
 /// and NoSQL databases.
 ///

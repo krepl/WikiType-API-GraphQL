@@ -2,9 +2,8 @@ use crate::database::sql::schema::exercises;
 
 use std::fmt;
 
-/// Representation for exercises.
+/// A WikiType typing exercise.
 #[derive(juniper::GraphQLObject, Queryable, Debug, Eq, PartialEq, Clone)]
-#[graphql(description = "A typing exercise.")]
 pub struct Exercise {
     /// UUID string.
     pub id: String,
@@ -15,21 +14,26 @@ pub struct Exercise {
     /// Content of the exercise.
     pub body: String,
 
-    /// Optional topic describing the general catgory of an exercise.
+    /// Optional topic describing the general exercise category.
     ///
     /// See <https://en.wikipedia.org/wiki/Portal:Contents/Portals> for an idea.
     pub topic: Option<String>,
 
-    /// Creation time in seconds since the epoch.
+    /// Date and time of creation.
     pub created_on: chrono::NaiveDateTime,
 
-    /// Modification time in seconds since the epoch.
+    /// Date and time of the last modification.
     pub modified_on: chrono::NaiveDateTime,
 }
 
+impl fmt::Display for Exercise {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
 /// Type for creating a new `Exercise`.
-#[derive(juniper::GraphQLInputObject, Insertable)]
-#[graphql(description = "A typing exercise.")]
+#[derive(Insertable)]
 #[table_name = "exercises"]
 pub struct NewExercise {
     id: String,
@@ -68,7 +72,7 @@ pub struct NewExerciseBuilder<'a> {
     id: String,
     title: Option<&'a str>,
     body: Option<&'a str>,
-    topic: Option<&'a str>,
+    topic: Option<String>,
 }
 
 impl<'a> NewExerciseBuilder<'a> {
@@ -91,8 +95,8 @@ impl<'a> NewExerciseBuilder<'a> {
         self
     }
 
-    pub fn topic(&mut self, topic: &'a str) -> &mut NewExerciseBuilder<'a> {
-        self.topic = Some(topic);
+    pub fn topic(&mut self, topic: &Option<String>) -> &mut NewExerciseBuilder<'a> {
+        self.topic = topic.clone();
         self
     }
 
@@ -105,7 +109,7 @@ impl<'a> NewExerciseBuilder<'a> {
             id: self.id.clone(),
             title,
             body,
-            topic: self.topic.map(String::from),
+            topic: self.topic.clone(),
             created_on,
             modified_on,
         }

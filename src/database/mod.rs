@@ -1,5 +1,6 @@
 use crate::models::{Exercise, NewExercise, UpdatedExercise};
 
+use std::fmt;
 use std::result;
 
 /// SQL schemas and DAO implementations.
@@ -30,6 +31,12 @@ pub enum Error {
     SqlConnectionError(diesel::result::ConnectionError),
     // TODO
     //NoSqlError(),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:#?}", self)
+    }
 }
 
 /// Result type returned by databases-related functions.
