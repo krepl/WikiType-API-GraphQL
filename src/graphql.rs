@@ -70,6 +70,13 @@ impl NewExercise {
 
 /// TODO
 pub struct Context {
+    // Postgres connection pool.
+    //
+    // NOTE: The database should already contain the `exercises` table. Otherwise, run the
+    // migrations against the database.
+    //
+    // i.e.
+    //     $ diesel migration run
     pool: Pool<ConnectionManager<PgConnection>>,
 }
 

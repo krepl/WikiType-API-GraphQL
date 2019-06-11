@@ -1,84 +1,45 @@
-use database::ExerciseDao;
-use wikitype_api::database;
-use wikitype_api::models::{Exercise, NewExerciseBuilder, UpdatedExerciseBuilder};
+extern crate log;
 
-use diesel::prelude::*;
-use diesel::r2d2;
+use wikitype_api::graphql::{Context, Mutation, Query, Schema};
+
 use dotenv::dotenv;
-use std::env;
-use std::thread;
+use warp::{http::Response, Filter};
 
-const ALBATROSS_BODY: &'static str =
-    "Albatrosses, of the biological family Diomedeidae, are large seabirds related to the \
-     procellariids, storm petrels, and diving petrels in the order Procellariiformes (the \
-     tubenoses).";
+fn schema() -> Schema {
+    Schema::new(Query, Mutation)
+}
 
+// TODO: Improve the endpoint structure / implementation.
+// NOTE: The current implementation is copied verbatim from the following juniper example.
+// https://github.com/graphql-rust/juniper/blob/master/juniper_warp/examples/warp_server.rs
 fn main() {
-    // Connect to a Postgres database.
-    //
-    // NOTE: This database should already contain the `exercises` table. Otherwise, run the
-    // migrations against the database.
-    //
-    // i.e.
-    //     $ diesel migration run
     dotenv().ok();
 
-    let database_url = env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set");
-    let dao: &dyn ExerciseDao = &PgConnection::establish(&database_url)
-        .expect(&format!("Error connecting to database {}.", database_url));
+    std::env::set_var("RUST_LOG", "warp_server");
+    env_logger::init();
 
-    // Create a new exercise.
-    let new_exercise = NewExerciseBuilder::new()
-        .title("Albatross")
-        .body(ALBATROSS_BODY)
-        .build();
+    let log = warp::log("warp_server");
 
-    // Insert the new exercise into the database.
-    let exercise = dao
-        .create(&new_exercise)
-        .expect("Failed to create Albatross exercise.");
-    println!("{:#?}", exercise);
+    let homepage = warp::path::end().map(|| {
+        Response::builder()
+            .header("content-type", "text/html")
+            .body(format!(
+                "<html><h1>juniper_warp</h1><div>visit <a href=\"/graphiql\">/graphiql</a></html>"
+            ))
+    });
 
-    // Create an updated exercise.
-    let updated_exercise = UpdatedExerciseBuilder::new(&exercise)
-        .title("Alabatross new")
-        .topic(Some("It's a topic!"))
-        .build();
+    log::info!("Listening on 127.0.0.1:8080");
 
-    // Update the exercise.
-    let exercise = dao
-        .update(&updated_exercise)
-        .expect("Failed to create Albatross exercise.");
-    println!("{:#?}", exercise);
+    let state = warp::any().map(move || Context::new());
+    let graphql_filter = juniper_warp::make_graphql_filter(schema(), state.boxed());
 
-    // Demonstrate use of r2d2::PooledConnection<M> as an ExerciseDao.
-    let manager: r2d2::ConnectionManager<PgConnection> = r2d2::ConnectionManager::new(database_url);
-    let pool = r2d2::Pool::builder().max_size(10).build(manager).unwrap();
-
-    let join_handles: Vec<thread::JoinHandle<database::Result<Exercise>>> = (0..20)
-        .map(|_| {
-            let pool = pool.clone();
-            let exercise = exercise.clone();
-            thread::spawn(move || {
-                let conn: &dyn ExerciseDao = &pool.get().unwrap();
-                conn.find_by_id(&exercise.id)
-            })
-        })
-        .collect();
-
-    for jh in join_handles {
-        assert_eq!(jh.join().unwrap(), Ok(exercise.clone()));
-    }
-
-    // Delete the exercise.
-    let deleted_exercise = dao
-        .delete_by_id(&exercise.id)
-        .expect("Failed to create Albatross exercise.");
-    assert_eq!(exercise, deleted_exercise);
-
-    let exercise = dao.find_by_id(&exercise.id);
-    assert_eq!(
-        exercise,
-        Err(database::Error::SqlError(diesel::result::Error::NotFound))
-    );
+    warp::serve(
+        warp::get2()
+            .and(warp::path("graphiql"))
+            .and(juniper_warp::graphiql_filter("/graphql"))
+            .or(homepage)
+            .or(warp::path("graphql").and(graphql_filter))
+            .with(log),
+    )
+    .run(([127, 0, 0, 1], 8080));
 }
