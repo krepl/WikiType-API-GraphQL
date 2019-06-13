@@ -61,7 +61,7 @@ impl NewExercise {
 /// let new_exercise = NewExerciseBuilder::new()
 ///     .title("Albatross")
 ///     .body("Albatross body")
-///     .topic("It's a topic!")
+///     .topic(&Some(String::from("It's a topic!")))
 ///     .build();
 ///
 /// assert_eq!(new_exercise.title, "Albatross");
