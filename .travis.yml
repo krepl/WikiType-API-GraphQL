@@ -10,7 +10,7 @@ services:
   - postgresql
 
 install:
-  - cargo install diesel_cli
+  - command -v diesel >/dev/null 2>&1 || cargo install diesel_cli
 
 before_script:
   - source .env
