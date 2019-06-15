@@ -41,7 +41,8 @@ impl juniper::IntoFieldError for database::Error {
 
 /// Simplified type for creating a new `Exercise` via the API.
 ///
-/// This is the client-facing type which is converted into a `NewExercise` for database-insertion.
+/// This is the client-facing type which is converted into a `models::NewExercise` for
+/// database-insertion.
 #[graphql(description = "A WikiType typing exercise.")]
 #[derive(juniper::GraphQLInputObject)]
 pub struct NewExercise {
@@ -68,7 +69,7 @@ impl NewExercise {
     }
 }
 
-/// TODO
+/// Defines shared state for GraphQL resolvers (e.g. database connections).
 pub struct Context {
     // Postgres connection pool.
     //
@@ -91,7 +92,7 @@ impl Context {
 
 impl juniper::Context for Context {}
 
-/// TODO
+/// Defines available non-side-effecting queries on a GraphQL endpoint.
 pub struct Query;
 
 #[juniper::object(Context = Context)]
@@ -107,7 +108,7 @@ impl Query {
     }
 }
 
-/// TODO
+/// Defines available side-effecting queries on a GraphQL endpoint.
 pub struct Mutation;
 
 #[juniper::object(Context = Context)]
@@ -120,5 +121,186 @@ impl Mutation {
     }
 }
 
-/// TODO
+/// Type alias for `juniper::RootNode<...>` (needed when implementing a GraphQL endpoint).
 pub type Schema = juniper::RootNode<'static, Query, Mutation>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dotenv::dotenv;
+    use std::env;
+    use warp::{test, Filter, Reply};
+
+    #[derive(PartialEq, Debug, Serialize, Deserialize)]
+    struct Exercise {
+        pub id: Option<String>,
+        pub title: Option<String>,
+        pub body: Option<String>,
+        pub topic: Option<String>,
+        #[serde(rename = "createdOn")]
+        pub created_on: Option<f64>,
+        #[serde(rename = "modifiedOn")]
+        pub modified_on: Option<f64>,
+    }
+
+    fn schema() -> Schema {
+        Schema::new(Query, Mutation)
+    }
+
+    fn create_graphql_filter() -> warp::filters::BoxedFilter<(impl Reply,)> {
+        let state = warp::any().map(move || Context::new());
+        let graphql_filter = juniper_warp::make_graphql_filter(schema(), state.boxed());
+        let graphql_filter = warp::path("graphql").and(graphql_filter);
+        graphql_filter.boxed()
+    }
+
+    fn make_test_graphql_request(request: &str) -> test::RequestBuilder {
+        test::request()
+            .method("POST")
+            .path("/graphql")
+            .header("accept", "application/json")
+            .header("content-type", "application/json")
+            .body(request)
+    }
+
+    /// Create the JSON-encoded body of a GraphQL POST request.
+    ///
+    /// Returns a `String`.
+    ///
+    /// # Usage
+    ///
+    /// ```
+    /// create_graphql_request!("<query>");
+    /// // or
+    /// create_graphql_request!("<query>", "<variables>");
+    /// // or
+    /// create_graphql_request!("<query>", "<operation-name>", "<variables>");
+    /// ```
+    ///
+    /// See [GraphQL POST request](https://graphql.org/learn/serving-over-http/#post-request).
+    macro_rules! create_graphql_request {
+        ($query:expr) => {
+            format!(
+                "{{ \
+                 \"query\": \"{}\" \
+                 }}",
+                $query.to_string().replace('"', "\\\"")
+            )
+        };
+        ($query:expr, $vars:expr) => {
+            format!(
+                "{{ \
+                 \"query\": \"{}\", \
+                 \"variables\": {} \
+                 }}",
+                $query.to_string().replace('"', "\\\""),
+                $vars
+            )
+        };
+        ($query:expr, $op_name:expr, $vars:expr) => {
+            format!(
+                "{{ \
+                 \"query\": \"{}\", \
+                 \"operationName\": \"{}\", \
+                 \"variables\": {} \
+                 }}",
+                $query.to_string().replace('"', "\\\""),
+                $op_name,
+                $vars
+            )
+        };
+    }
+
+    #[test]
+    fn create_and_fetch_exercise() {
+        dotenv().ok();
+        let test_database_url =
+            env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set");
+        env::set_var("DATABASE_URL", test_database_url);
+
+        let graphql_filter = create_graphql_filter();
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Create a new exercise.
+        ///////////////////////////////////////////////////////////////////////////////
+        let request = create_graphql_request!(
+            "mutation CreateNewExercise($newExercise: NewExercise!) {
+                createExercise(newExercise: $newExercise) {
+                    id,
+                    title,
+                    body,
+                    topic,
+                    createdOn,
+                    modifiedOn
+                }
+            }"
+            .replace("\n", " "),
+            "{
+                \"newExercise\": {
+                    \"title\": \"Albatross\",
+                    \"body\": \"Albatrosses, of the biological family Diomedeidae, are large \
+                                seabirds related to the procellariids, storm petrels, and diving \
+                                petrels in the order Procellariiformes (the tubenoses).\"
+                }
+            }"
+            .replace("\n", " ")
+        );
+
+        let response = make_test_graphql_request(&request).reply(&graphql_filter);
+        let new_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
+        let new_exercise: Exercise = new_exercise
+            .as_object()
+            .and_then(|map| map.get("data"))
+            .and_then(|map| map.get("createExercise"))
+            .map(|map| map.to_string())
+            .map(|s| serde_json::from_str(&s))
+            .transpose()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(new_exercise.title, Some(String::from("Albatross")));
+        assert_eq!(new_exercise.topic, None);
+        assert_ne!(new_exercise.created_on, None);
+        assert_eq!(new_exercise.created_on, new_exercise.modified_on);
+        assert_eq!(
+            new_exercise.body,
+            Some(String::from(
+                "Albatrosses, of the biological family Diomedeidae, are large seabirds \
+                 related to the procellariids, storm petrels, and diving petrels in the order \
+                 Procellariiformes (the tubenoses)."
+            ))
+        );
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Query for the new exercise.
+        ///////////////////////////////////////////////////////////////////////////////
+        let request = create_graphql_request!(
+            "query FindExerciseById($id: String!) {
+                exercise(id: $id) {
+                    id
+                    title
+                    body
+                    topic
+                    createdOn
+                    modifiedOn
+                }
+            }"
+            .replace("\n", " "),
+            format!("{{ \"id\": \"{}\" }}", new_exercise.id.clone().unwrap())
+        );
+
+        let response = make_test_graphql_request(&request).reply(&graphql_filter);
+        let exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
+        let exercise: Exercise = exercise
+            .as_object()
+            .and_then(|map| map.get("data"))
+            .and_then(|map| map.get("exercise"))
+            .map(|map| map.to_string())
+            .map(|s| serde_json::from_str(&s))
+            .transpose()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(exercise, new_exercise);
+    }
+}

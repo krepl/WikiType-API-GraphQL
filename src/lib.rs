@@ -4,6 +4,10 @@ extern crate diesel;
 #[macro_use]
 extern crate juniper;
 
+#[cfg(test)]
+#[macro_use]
+extern crate serde;
+
 /// A basic [data access layer] for WikiType, including [data access objects] for a handful of SQL
 /// and NoSQL databases.
 ///
@@ -11,7 +15,7 @@ extern crate juniper;
 /// [data access objects]: https://en.wikipedia.org/wiki/Data_access_object
 pub mod database;
 
-/// TODO
+/// GraphQL types and resolvers.
 pub mod graphql;
 
 /// Database-agnostic models for WikiType data.
