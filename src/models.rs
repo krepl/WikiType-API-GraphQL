@@ -1,5 +1,6 @@
 use crate::database::sql::schema::exercises;
 
+use chrono::NaiveDateTime;
 use std::fmt;
 
 /// A WikiType typing exercise.
@@ -61,7 +62,7 @@ impl NewExercise {
 /// let new_exercise = NewExerciseBuilder::new()
 ///     .title("Albatross")
 ///     .body("Albatross body")
-///     .topic(&Some(String::from("It's a topic!")))
+///     .topic(Some("It's a topic!"))
 ///     .build();
 ///
 /// assert_eq!(new_exercise.title, "Albatross");
@@ -72,7 +73,7 @@ pub struct NewExerciseBuilder<'a> {
     id: String,
     title: Option<&'a str>,
     body: Option<&'a str>,
-    topic: Option<String>,
+    topic: Option<&'a str>,
 }
 
 impl<'a> NewExerciseBuilder<'a> {
@@ -95,7 +96,7 @@ impl<'a> NewExerciseBuilder<'a> {
         self
     }
 
-    pub fn topic(&mut self, topic: &Option<String>) -> &mut NewExerciseBuilder<'a> {
+    pub fn topic(&mut self, topic: Option<&'a str>) -> &mut NewExerciseBuilder<'a> {
         self.topic = topic.clone();
         self
     }
@@ -109,7 +110,7 @@ impl<'a> NewExerciseBuilder<'a> {
             id: self.id.clone(),
             title,
             body,
-            topic: self.topic.clone(),
+            topic: self.topic.map(String::from),
             created_on,
             modified_on,
         }
@@ -120,7 +121,7 @@ impl<'a> NewExerciseBuilder<'a> {
 #[derive(AsChangeset, Identifiable, Clone)]
 #[table_name = "exercises"]
 pub struct UpdatedExercise<'a> {
-    id: String,
+    id: &'a str,
     pub title: Option<&'a str>,
     pub body: Option<&'a str>,
     pub topic: Option<Option<&'a str>>,
@@ -129,7 +130,7 @@ pub struct UpdatedExercise<'a> {
 
 impl<'a> UpdatedExercise<'a> {
     pub fn get_id(&self) -> &str {
-        &self.id
+        self.id
     }
 }
 
@@ -152,7 +153,7 @@ impl<'a> UpdatedExercise<'a> {
 /// };
 ///
 /// // Create an updated exercise.
-/// let updated_exercise = UpdatedExerciseBuilder::new(&exercise)
+/// let updated_exercise = UpdatedExerciseBuilder::new(&exercise.id)
 ///     .title("Alabatross new")
 ///     .topic(Some("It's a topic!"))
 ///     .build();
@@ -165,14 +166,14 @@ pub struct UpdatedExerciseBuilder<'a> {
 }
 
 impl<'a> UpdatedExerciseBuilder<'a> {
-    pub fn new(exercise: &Exercise) -> UpdatedExerciseBuilder<'a> {
+    pub fn new(id: &'a str) -> UpdatedExerciseBuilder<'a> {
         UpdatedExerciseBuilder {
             exercise: UpdatedExercise {
-                id: exercise.id.clone(),
+                id,
                 title: None,
                 body: None,
                 topic: None,
-                modified_on: exercise.modified_on,
+                modified_on: NaiveDateTime::from_timestamp(0, 0),
             },
         }
     }

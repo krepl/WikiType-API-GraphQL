@@ -2,39 +2,34 @@ use crate::database;
 use crate::database::sql::PgConnection;
 use crate::database::ExerciseDao;
 use crate::models;
-use crate::models::{Exercise, NewExerciseBuilder};
+use crate::models::{Exercise, NewExerciseBuilder, UpdatedExerciseBuilder};
 
 use diesel::r2d2::{ConnectionManager, Pool};
-use juniper::FieldResult;
 use std::env;
 
-// TODO: Possibly implement an error enum that can be marshaled into a GraphQL value to return as
-// an error.
-//
-// Use https://www.restapitutorial.com/httpstatuscodes.html as a reference.
-//
-// TODO: Decide which module this code goes in.
+/// Error-handling for database errors returned from resolvers.
+///
+/// Use <https://www.restapitutorial.com/httpstatuscodes.html> as a reference.
 impl juniper::IntoFieldError for database::Error {
     fn into_field_error(self) -> juniper::FieldError {
-        use diesel::result::Error;
+        use database::Error;
         match self {
-            database::Error::SqlConnectionError(_) => {
-                // TODO: log the connection error
+            Error::NotFound => juniper::FieldError::new(
+                "Resource not found",
+                graphql_value!({"client_error": "not_found"}),
+            ),
+            Error::QueryError(e)
+            | Error::DeserializationError(e)
+            | Error::SerializationError(e) => {
+                juniper::FieldError::new(e, graphql_value!({"client_error": "bad_request"}))
+            }
+            Error::ServerError(_) => {
+                // TODO: Add error logging
                 juniper::FieldError::new(
-                    "Could not open connection to the database.",
+                    "An internal server error occurred",
                     graphql_value!({"server_error": "internal_server_error"}),
                 )
             }
-            database::Error::SqlError(e) => match e {
-                Error::NotFound => juniper::FieldError::new(
-                    "Value not found.",
-                    graphql_value!({"client_error": "not_found"}),
-                ),
-                _ => juniper::FieldError::new(
-                    e.to_string(), // TODO: Replace this direct serialization of a database error.
-                    graphql_value!({"client_error": "bad_request"}),
-                ),
-            },
         }
     }
 }
@@ -64,8 +59,41 @@ impl NewExercise {
         NewExerciseBuilder::new()
             .title(&self.title)
             .body(&self.body)
-            .topic(&self.topic)
+            .topic(self.topic.as_ref().map(|t| &**t))
             .build()
+    }
+}
+
+/// Simplified type for updating an `Exercise` via the API.
+///
+/// This is the client-facing type which is converted into a `models::UpdatedExercise` for
+/// updating.
+#[graphql(description = "A WikiType typing exercise.")]
+#[derive(juniper::GraphQLInputObject)]
+pub struct UpdatedExercise {
+    /// UUID string.
+    pub id: String,
+
+    /// Title of the exercise.
+    pub title: Option<String>,
+
+    /// Content of the exercise.
+    pub body: Option<String>,
+
+    /// Optional topic describing the general exercise category.
+    ///
+    /// See <https://en.wikipedia.org/wiki/Portal:Contents/Portals> for an idea.
+    pub topic: Option<String>,
+}
+
+impl UpdatedExercise {
+    /// Converts a `graphql::UpdatedExercise` to a `models::UpdatedExercise`.
+    pub fn to_updated_exercise_model(&self) -> models::UpdatedExercise {
+        let mut update = UpdatedExerciseBuilder::new(&self.id);
+        self.title.as_ref().map(|title| update.title(title));
+        self.body.as_ref().map(|body| update.body(body));
+        update.topic(self.topic.as_ref().map(|t| &**t));
+        update.build()
     }
 }
 
@@ -101,7 +129,7 @@ impl Query {
         "1.0"
     }
 
-    fn exercise(context: &Context, id: String) -> FieldResult<Exercise> {
+    fn exercise(context: &Context, id: String) -> Result<Exercise, database::Error> {
         let conn: &dyn ExerciseDao = &context.pool.get().unwrap();
         let exercise = conn.find_by_id(&id)?;
         Ok(exercise)
@@ -113,10 +141,29 @@ pub struct Mutation;
 
 #[juniper::object(Context = Context)]
 impl Mutation {
-    fn createExercise(context: &Context, new_exercise: NewExercise) -> FieldResult<Exercise> {
+    fn createExercise(
+        context: &Context,
+        new_exercise: NewExercise,
+    ) -> Result<Exercise, database::Error> {
         let conn: &dyn ExerciseDao = &executor.context().pool.get().unwrap();
         let new_exercise = new_exercise.to_new_exercise_model();
         let exercise = conn.create(&new_exercise)?;
+        Ok(exercise)
+    }
+
+    fn updateExercise(
+        context: &Context,
+        updated_exercise: UpdatedExercise,
+    ) -> Result<Exercise, database::Error> {
+        let conn: &dyn ExerciseDao = &executor.context().pool.get().unwrap();
+        let updated_exercise = updated_exercise.to_updated_exercise_model();
+        let exercise = conn.update(&updated_exercise)?;
+        Ok(exercise)
+    }
+
+    fn deleteExerciseById(context: &Context, id: String) -> Result<Exercise, database::Error> {
+        let conn: &dyn ExerciseDao = &executor.context().pool.get().unwrap();
+        let exercise = conn.delete_by_id(&id)?;
         Ok(exercise)
     }
 }
@@ -212,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn create_and_fetch_exercise() {
+    fn graphql_crud_integration() {
         dotenv().ok();
         let test_database_url =
             env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set");
@@ -272,9 +319,9 @@ mod tests {
         );
 
         ///////////////////////////////////////////////////////////////////////////////
-        // Query for the new exercise.
+        // Query for the exercise.
         ///////////////////////////////////////////////////////////////////////////////
-        let request = create_graphql_request!(
+        let find_by_id_request = create_graphql_request!(
             "query FindExerciseById($id: String!) {
                 exercise(id: $id) {
                     id
@@ -289,9 +336,9 @@ mod tests {
             format!("{{ \"id\": \"{}\" }}", new_exercise.id.clone().unwrap())
         );
 
-        let response = make_test_graphql_request(&request).reply(&graphql_filter);
-        let exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
-        let exercise: Exercise = exercise
+        let response = make_test_graphql_request(&find_by_id_request).reply(&graphql_filter);
+        let found_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
+        let found_exercise: Exercise = found_exercise
             .as_object()
             .and_then(|map| map.get("data"))
             .and_then(|map| map.get("exercise"))
@@ -301,6 +348,108 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(exercise, new_exercise);
+        assert_eq!(found_exercise, new_exercise);
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Update the exercise.
+        ///////////////////////////////////////////////////////////////////////////////
+        let request = create_graphql_request!(
+            "mutation UpdateExercise($updatedExercise: UpdatedExercise!){
+                updateExercise(updatedExercise: $updatedExercise) {
+                    id,
+                    title,
+                    body,
+                    topic,
+                    createdOn,
+                    modifiedOn
+                }
+            }"
+            .replace("\n", " "),
+            format!(
+                "{{
+                  \"updatedExercise\": {{
+                    \"id\": \"{}\",
+                    \"title\": \"The Amazing Albatross\"
+                  }}
+                }}",
+                found_exercise.id.clone().unwrap()
+            )
+            .replace("\n", " ")
+        );
+
+        let response = make_test_graphql_request(&request).reply(&graphql_filter);
+        let updated_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
+        let updated_exercise: Exercise = updated_exercise
+            .as_object()
+            .and_then(|map| map.get("data"))
+            .and_then(|map| map.get("updateExercise"))
+            .map(|map| map.to_string())
+            .map(|s| serde_json::from_str(&s))
+            .transpose()
+            .unwrap()
+            .unwrap();
+
+        let expected_exercise = found_exercise;
+
+        assert_eq!(expected_exercise.id, updated_exercise.id);
+        assert_eq!(
+            Some(String::from("The Amazing Albatross")),
+            updated_exercise.title
+        );
+        assert_eq!(expected_exercise.body, updated_exercise.body);
+        assert_eq!(expected_exercise.topic, updated_exercise.topic);
+        assert_eq!(expected_exercise.created_on, updated_exercise.created_on);
+        assert!(expected_exercise.modified_on <= updated_exercise.modified_on);
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Delete the exercise.
+        ///////////////////////////////////////////////////////////////////////////////
+        let request = create_graphql_request!(
+            "mutation DeleteExerciseById($id: String!){
+                deleteExerciseById(id: $id) {
+                    id,
+                    title,
+                    body,
+                    topic,
+                    createdOn,
+                    modifiedOn
+                }
+            }"
+            .replace("\n", " "),
+            format!("{{ \"id\": \"{}\" }}", updated_exercise.id.clone().unwrap())
+        );
+
+        let response = make_test_graphql_request(&request).reply(&graphql_filter);
+        let deleted_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
+        let deleted_exercise: Exercise = deleted_exercise
+            .as_object()
+            .and_then(|map| map.get("data"))
+            .and_then(|map| map.get("deleteExerciseById"))
+            .map(|map| map.to_string())
+            .map(|s| serde_json::from_str(&s))
+            .transpose()
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(updated_exercise, deleted_exercise);
+
+        // Verify the exercise was deleted.
+        let response = make_test_graphql_request(&find_by_id_request).reply(&graphql_filter);
+        let error: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
+        let error = error
+            .get("errors")
+            .and_then(|map| map.get(0))
+            .and_then(|map| map.get("extensions"))
+            .unwrap()
+            .as_object()
+            .unwrap();
+
+        assert!(error.contains_key("client_error"));
+        assert_eq!(
+            error
+                .get("client_error")
+                .and_then(serde_json::Value::as_str),
+            Some("not_found")
+        );
     }
 }

@@ -1,41 +1,60 @@
 use crate::models::{Exercise, NewExercise, UpdatedExercise};
 
+use diesel::result::ConnectionError as DieselConnectionError;
+use diesel::result::Error as DieselError;
 use std::fmt;
 use std::result;
 
 /// SQL schemas and DAO implementations.
 pub mod sql;
 
-///// TODO
-//pub mod nosql {
-//pub mod document {
-//pub mod mongodb {}
-
-//// ... e.g. firebase, couchbase, amazon documentdb
-//}
-
-///// Redis is a distributed, in-memory key-value database with optional durability.
-/////
-///// It can be useful for caching and offers persistence if needed. Typically Redis is
-///// configured to not offer durability, i.e. recent, committed transactions may be lost, which
-///// helps with performance.
-//pub mod redis {}
-//}
-
 /// Error type returned by databases-related functions.
-///
-/// TODO: Elaborate on the types of errors?
 #[derive(Debug, PartialEq)]
 pub enum Error {
-    SqlError(diesel::result::Error),
-    SqlConnectionError(diesel::result::ConnectionError),
-    // TODO
-    //NoSqlError(),
+    /// The requested resource could not be found.
+    NotFound,
+
+    /// The database query could not be constructed.
+    QueryError(String),
+
+    /// An error occurred deserializing the data being sent to the database.
+    DeserializationError(String),
+
+    /// An error occurred serializing the data being sent to the database.
+    SerializationError(String),
+
+    /// A catchall error for general server errors.
+    ServerError(Option<String>),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:#?}", self)
+    }
+}
+
+/// Trait for converting other error types into `database::Error`s.
+pub trait IntoDatabaseError {
+    fn into_database_error(self) -> Error;
+}
+
+impl IntoDatabaseError for DieselError {
+    fn into_database_error(self) -> Error {
+        match self {
+            DieselError::NotFound => Error::NotFound,
+            DieselError::QueryBuilderError(e) => Error::QueryError(e.to_string()),
+            DieselError::DeserializationError(e) => Error::DeserializationError(e.to_string()),
+            DieselError::SerializationError(e) => Error::SerializationError(e.to_string()),
+            e => Error::ServerError(Some(e.to_string())),
+        }
+    }
+}
+
+impl IntoDatabaseError for DieselConnectionError {
+    fn into_database_error(self) -> Error {
+        match self {
+            e => Error::ServerError(Some(e.to_string())),
+        }
     }
 }
 
@@ -118,7 +137,7 @@ pub trait DeleteById<ID, R> {
 /// assert_eq!(exercise.topic.is_none(), new_exercise.topic.is_none());
 ///
 /// // Create an updated exercise.
-/// let updated_exercise = UpdatedExerciseBuilder::new(&exercise)
+/// let updated_exercise = UpdatedExerciseBuilder::new(&exercise.id)
 ///     .title("Albatross new")
 ///     .topic(Some("It's a topic!"))
 ///     .build();
@@ -161,7 +180,7 @@ pub trait DeleteById<ID, R> {
 /// let exercise = dao.find_by_id(&exercise.id);
 /// assert_eq!(
 ///     exercise,
-///     Err(database::Error::SqlError(diesel::result::Error::NotFound))
+///     Err(database::Error::NotFound)
 /// );
 /// ```
 pub trait ExerciseDao:

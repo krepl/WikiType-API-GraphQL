@@ -1,6 +1,6 @@
 use crate::database;
 use crate::models::{Exercise, NewExercise, UpdatedExercise};
-use database::Error::SqlError;
+use database::IntoDatabaseError;
 use database::{Create, DeleteById, ExerciseDao, FindById, Update};
 
 use diesel::backend::{Backend, SupportsDefaultKeyword, UsesAnsiSavepointSyntax};
@@ -53,7 +53,7 @@ where
         diesel::insert_into(exercises::table)
             .values(obj)
             .execute(self)
-            .map_err(SqlError)?;
+            .map_err(IntoDatabaseError::into_database_error)?;
 
         self.find_by_id(obj.get_id())
     }
@@ -67,7 +67,10 @@ where
     chrono::NaiveDateTime: diesel::deserialize::FromSql<diesel::sql_types::Timestamp, DB>,
 {
     fn find_by_id(&self, id: &'a str) -> database::Result<Exercise> {
-        exercises::table.find(id).first(self).map_err(SqlError)
+        exercises::table
+            .find(id)
+            .first(self)
+            .map_err(IntoDatabaseError::into_database_error)
     }
 }
 
@@ -83,7 +86,7 @@ where
         diesel::update(exercises::table)
             .set(obj)
             .execute(self)
-            .map_err(SqlError)
+            .map_err(IntoDatabaseError::into_database_error)
             .and_then(|_| self.find_by_id(&obj.get_id()))
     }
 }
@@ -98,7 +101,7 @@ where
         let exercise = self.find_by_id(id);
         diesel::delete(exercises::table.find(id))
             .execute(self)
-            .map_err(SqlError)
+            .map_err(IntoDatabaseError::into_database_error)
             .and_then(|_| exercise)
     }
 }
@@ -154,7 +157,7 @@ where
 /// let exercise = dao.find_by_id(&exercise.id);
 /// assert_eq!(
 ///     exercise,
-///     Err(database::Error::SqlError(diesel::result::Error::NotFound))
+///     Err(database::Error::NotFound)
 /// );
 /// ```
 pub struct SqliteConnection(pub diesel::SqliteConnection);
@@ -166,7 +169,7 @@ impl<'a> Create<&'a NewExercise, Exercise> for SqliteConnection {
         diesel::insert_into(exercises::table)
             .values(obj)
             .execute(&self.0)
-            .map_err(SqlError)?;
+            .map_err(IntoDatabaseError::into_database_error)?;
 
         self.find_by_id(obj.get_id())
     }
@@ -174,7 +177,10 @@ impl<'a> Create<&'a NewExercise, Exercise> for SqliteConnection {
 
 impl<'a> FindById<&'a str, Exercise> for SqliteConnection {
     fn find_by_id(&self, id: &'a str) -> database::Result<Exercise> {
-        exercises::table.find(id).first(&self.0).map_err(SqlError)
+        exercises::table
+            .find(id)
+            .first(&self.0)
+            .map_err(IntoDatabaseError::into_database_error)
     }
 }
 
@@ -183,7 +189,7 @@ impl<'a> Update<&'a UpdatedExercise<'a>, Exercise> for SqliteConnection {
         diesel::update(exercises::table)
             .set(obj)
             .execute(&self.0)
-            .map_err(SqlError)
+            .map_err(IntoDatabaseError::into_database_error)
             .and_then(|_| self.find_by_id(&obj.get_id()))
     }
 }
@@ -193,7 +199,7 @@ impl<'a> DeleteById<&'a str, Exercise> for SqliteConnection {
         let exercise = self.find_by_id(id);
         diesel::delete(exercises::table.find(id))
             .execute(&self.0)
-            .map_err(SqlError)
+            .map_err(IntoDatabaseError::into_database_error)
             .and_then(|_| exercise)
     }
 }
