@@ -23,8 +23,10 @@ impl juniper::IntoFieldError for database::Error {
             | Error::SerializationError(e) => {
                 juniper::FieldError::new(e, graphql_value!({"client_error": "bad_request"}))
             }
-            Error::ServerError(_) => {
-                // TODO: Add error logging
+            Error::ServerError(e) => {
+                if let Some(e) = e {
+                    log::error!("{}", e);
+                }
                 juniper::FieldError::new(
                     "An internal server error occurred",
                     graphql_value!({"server_error": "internal_server_error"}),

@@ -15,7 +15,11 @@ fn schema() -> Schema {
 fn main() {
     dotenv().ok();
 
-    std::env::set_var("RUST_LOG", "warp_server");
+    // Set the RUST_LOG environment variable if not already set.
+    if let Err(_) = std::env::var("RUST_LOG") {
+        // Enable error-logging AND the warp_server logging target.
+        std::env::set_var("RUST_LOG", "error,warp_server");
+    }
     env_logger::init();
 
     let log = warp::log("warp_server");
