@@ -176,11 +176,13 @@ pub type Schema = juniper::RootNode<'static, Query, Mutation>;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
     use dotenv::dotenv;
+    use http::response::Response;
     use std::env;
     use warp::{test, Filter, Reply};
 
-    #[derive(PartialEq, Debug, Serialize, Deserialize)]
+    #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
     struct Exercise {
         pub id: Option<String>,
         pub title: Option<String>,
@@ -192,10 +194,12 @@ mod tests {
         pub modified_on: Option<f64>,
     }
 
+    /// Create a new `graphql::Schema`.
     fn schema() -> Schema {
         Schema::new(Query, Mutation)
     }
 
+    /// Create a new `warp::Filter` at `/graphql` for handling GraphQL requests.
     fn create_graphql_filter() -> warp::filters::BoxedFilter<(impl Reply,)> {
         let state = warp::any().map(move || Context::new());
         let graphql_filter = juniper_warp::make_graphql_filter(schema(), state.boxed());
@@ -203,6 +207,8 @@ mod tests {
         graphql_filter.boxed()
     }
 
+    /// Create a new `warp::test::RequestBuilder` for testing a `warp::Filter` that handles GraphQL
+    /// requests.
     fn make_test_graphql_request(request: &str) -> test::RequestBuilder {
         test::request()
             .method("POST")
@@ -260,19 +266,9 @@ mod tests {
         };
     }
 
-    #[test]
-    fn graphql_crud_integration() {
-        dotenv().ok();
-        let test_database_url =
-            env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set");
-        env::set_var("DATABASE_URL", test_database_url);
-
-        let graphql_filter = create_graphql_filter();
-
-        ///////////////////////////////////////////////////////////////////////////////
-        // Create a new exercise.
-        ///////////////////////////////////////////////////////////////////////////////
-        let request = create_graphql_request!(
+    /// Create the JSON-encoded body of a GraphQL POST request for creating a new exercise.
+    fn create_new_exercise_graphql_request(title: &str, body: &str) -> String {
+        create_graphql_request!(
             "mutation CreateNewExercise($newExercise: NewExercise!) {
                 createExercise(newExercise: $newExercise) {
                     id,
@@ -284,46 +280,22 @@ mod tests {
                 }
             }"
             .replace("\n", " "),
-            "{
-                \"newExercise\": {
-                    \"title\": \"Albatross\",
-                    \"body\": \"Albatrosses, of the biological family Diomedeidae, are large \
-                                seabirds related to the procellariids, storm petrels, and diving \
-                                petrels in the order Procellariiformes (the tubenoses).\"
-                }
-            }"
+            &format!(
+                "{{
+                \"newExercise\": {{
+                    \"title\": \"{}\",
+                    \"body\": \"{}\"
+                }}
+            }}",
+                title, body
+            )
             .replace("\n", " ")
-        );
+        )
+    }
 
-        let response = make_test_graphql_request(&request).reply(&graphql_filter);
-        let new_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
-        let new_exercise: Exercise = new_exercise
-            .as_object()
-            .and_then(|map| map.get("data"))
-            .and_then(|map| map.get("createExercise"))
-            .map(|map| map.to_string())
-            .map(|s| serde_json::from_str(&s))
-            .transpose()
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(new_exercise.title, Some(String::from("Albatross")));
-        assert_eq!(new_exercise.topic, None);
-        assert_ne!(new_exercise.created_on, None);
-        assert_eq!(new_exercise.created_on, new_exercise.modified_on);
-        assert_eq!(
-            new_exercise.body,
-            Some(String::from(
-                "Albatrosses, of the biological family Diomedeidae, are large seabirds \
-                 related to the procellariids, storm petrels, and diving petrels in the order \
-                 Procellariiformes (the tubenoses)."
-            ))
-        );
-
-        ///////////////////////////////////////////////////////////////////////////////
-        // Query for the exercise.
-        ///////////////////////////////////////////////////////////////////////////////
-        let find_by_id_request = create_graphql_request!(
+    /// Create the JSON-encoded body of a GraphQL POST request for finding an exercise by id.
+    fn create_find_exercise_by_id_graphql_request(id: &str) -> String {
+        create_graphql_request!(
             "query FindExerciseById($id: String!) {
                 exercise(id: $id) {
                     id
@@ -335,27 +307,15 @@ mod tests {
                 }
             }"
             .replace("\n", " "),
-            format!("{{ \"id\": \"{}\" }}", new_exercise.id.clone().unwrap())
-        );
+            format!("{{ \"id\": \"{}\" }}", id)
+        )
+    }
 
-        let response = make_test_graphql_request(&find_by_id_request).reply(&graphql_filter);
-        let found_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
-        let found_exercise: Exercise = found_exercise
-            .as_object()
-            .and_then(|map| map.get("data"))
-            .and_then(|map| map.get("exercise"))
-            .map(|map| map.to_string())
-            .map(|s| serde_json::from_str(&s))
-            .transpose()
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(found_exercise, new_exercise);
-
-        ///////////////////////////////////////////////////////////////////////////////
-        // Update the exercise.
-        ///////////////////////////////////////////////////////////////////////////////
-        let request = create_graphql_request!(
+    /// Create the JSON-encoded body of a GraphQL POST request for updating an exercise.
+    fn create_update_exercise_graphql_request(updated_exercise: Exercise) -> String {
+        let id = updated_exercise.id.as_ref().unwrap();
+        let title = updated_exercise.title.as_ref().unwrap();
+        create_graphql_request!(
             "mutation UpdateExercise($updatedExercise: UpdatedExercise!){
                 updateExercise(updatedExercise: $updatedExercise) {
                     id,
@@ -371,42 +331,18 @@ mod tests {
                 "{{
                   \"updatedExercise\": {{
                     \"id\": \"{}\",
-                    \"title\": \"The Amazing Albatross\"
+                    \"title\": \"{}\"
                   }}
                 }}",
-                found_exercise.id.clone().unwrap()
+                id, title
             )
             .replace("\n", " ")
-        );
+        )
+    }
 
-        let response = make_test_graphql_request(&request).reply(&graphql_filter);
-        let updated_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
-        let updated_exercise: Exercise = updated_exercise
-            .as_object()
-            .and_then(|map| map.get("data"))
-            .and_then(|map| map.get("updateExercise"))
-            .map(|map| map.to_string())
-            .map(|s| serde_json::from_str(&s))
-            .transpose()
-            .unwrap()
-            .unwrap();
-
-        let expected_exercise = found_exercise;
-
-        assert_eq!(expected_exercise.id, updated_exercise.id);
-        assert_eq!(
-            Some(String::from("The Amazing Albatross")),
-            updated_exercise.title
-        );
-        assert_eq!(expected_exercise.body, updated_exercise.body);
-        assert_eq!(expected_exercise.topic, updated_exercise.topic);
-        assert_eq!(expected_exercise.created_on, updated_exercise.created_on);
-        assert!(expected_exercise.modified_on <= updated_exercise.modified_on);
-
-        ///////////////////////////////////////////////////////////////////////////////
-        // Delete the exercise.
-        ///////////////////////////////////////////////////////////////////////////////
-        let request = create_graphql_request!(
+    /// Create the JSON-encoded body of a GraphQL POST request for deleting an exercise by id.
+    fn create_delete_exercise_by_id_graphql_request(id: &str) -> String {
+        create_graphql_request!(
             "mutation DeleteExerciseById($id: String!){
                 deleteExerciseById(id: $id) {
                     id,
@@ -418,25 +354,98 @@ mod tests {
                 }
             }"
             .replace("\n", " "),
-            format!("{{ \"id\": \"{}\" }}", updated_exercise.id.clone().unwrap())
-        );
+            format!("{{ \"id\": \"{}\" }}", id)
+        )
+    }
 
-        let response = make_test_graphql_request(&request).reply(&graphql_filter);
-        let deleted_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
-        let deleted_exercise: Exercise = deleted_exercise
+    /// Deserialize an HTTP response into an `Exercise`.
+    fn deserialize_exercise_from_response(
+        response: Response<Bytes>,
+        request_name: &str,
+    ) -> Exercise {
+        let new_exercise: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
+        new_exercise
             .as_object()
             .and_then(|map| map.get("data"))
-            .and_then(|map| map.get("deleteExerciseById"))
+            .and_then(|map| map.get(request_name))
             .map(|map| map.to_string())
             .map(|s| serde_json::from_str(&s))
             .transpose()
             .unwrap()
-            .unwrap();
+            .unwrap()
+    }
 
-        assert_eq!(updated_exercise, deleted_exercise);
+    /// Make a HTTP POST request request to the GraphQL endpoint to create a new exercise.
+    fn create_new_exercise(
+        graphql_filter: &warp::filters::BoxedFilter<(impl Reply + 'static,)>,
+        title: &str,
+        body: &str,
+    ) -> Exercise {
+        let request = create_new_exercise_graphql_request(title, body);
+        let response = make_test_graphql_request(&request).reply(graphql_filter);
+        let new_exercise = deserialize_exercise_from_response(response, "createExercise");
 
-        // Verify the exercise was deleted.
-        let response = make_test_graphql_request(&find_by_id_request).reply(&graphql_filter);
+        assert_eq!(new_exercise.title, Some(String::from(title)));
+        assert_eq!(new_exercise.topic, None);
+        assert_ne!(new_exercise.created_on, None);
+        assert_eq!(new_exercise.created_on, new_exercise.modified_on);
+        assert_eq!(new_exercise.body, Some(String::from(body)));
+
+        new_exercise
+    }
+
+    /// Make a HTTP POST request request to the GraphQL endpoint to find an exercise by its id.
+    fn find_exercise_by_id(
+        graphql_filter: &warp::filters::BoxedFilter<(impl Reply + 'static,)>,
+        id: &str,
+    ) -> Exercise {
+        let request = create_find_exercise_by_id_graphql_request(id);
+        let response = make_test_graphql_request(&request).reply(graphql_filter);
+        let found_exercise = deserialize_exercise_from_response(response, "exercise");
+        found_exercise
+    }
+
+    /// Make a HTTP POST request request to the GraphQL endpoint to updated an exercise.
+    fn update_exercise(
+        graphql_filter: &warp::filters::BoxedFilter<(impl Reply + 'static,)>,
+        updated_exercise: Exercise,
+    ) -> Exercise {
+        let updated_title = updated_exercise.title.clone();
+        let request = create_update_exercise_graphql_request(updated_exercise);
+        let response = make_test_graphql_request(&request).reply(graphql_filter);
+        let updated_exercise = deserialize_exercise_from_response(response, "updateExercise");
+
+        let expected_exercise =
+            find_exercise_by_id(&graphql_filter, updated_exercise.id.as_ref().unwrap());
+
+        assert_eq!(expected_exercise.id, updated_exercise.id);
+        assert_eq!(updated_title, updated_exercise.title);
+        assert_eq!(expected_exercise.body, updated_exercise.body);
+        assert_eq!(expected_exercise.topic, updated_exercise.topic);
+        assert_eq!(expected_exercise.created_on, updated_exercise.created_on);
+        assert!(expected_exercise.modified_on <= updated_exercise.modified_on);
+
+        updated_exercise
+    }
+
+    /// Make a HTTP POST request request to the GraphQL endpoint to delete an exercise by its id.
+    fn delete_exercise_by_id(
+        graphql_filter: &warp::filters::BoxedFilter<(impl Reply + 'static,)>,
+        id: &str,
+    ) -> Exercise {
+        let request = create_delete_exercise_by_id_graphql_request(id);
+        let response = make_test_graphql_request(&request).reply(graphql_filter);
+        let deleted_exercise = deserialize_exercise_from_response(response, "deleteExerciseById");
+        deleted_exercise
+    }
+
+    /// Assert that requesting the given exercise by id returns an error.
+    fn assert_exercise_not_found_by_id(
+        graphql_filter: &warp::filters::BoxedFilter<(impl Reply + 'static,)>,
+        id: &str,
+    ) {
+        let request = create_find_exercise_by_id_graphql_request(id);
+        let response = make_test_graphql_request(&request).reply(graphql_filter);
         let error: serde_json::Value = serde_json::from_slice(&response.body()).unwrap();
         let error = error
             .get("errors")
@@ -453,5 +462,38 @@ mod tests {
                 .and_then(serde_json::Value::as_str),
             Some("not_found")
         );
+    }
+
+    /// Test creating, reading, updating, and deleting exercises via a GraphQL endpoint.
+    #[test]
+    fn graphql_crud_integration() {
+        dotenv().ok();
+        let test_database_url =
+            env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set");
+        env::set_var("DATABASE_URL", test_database_url);
+
+        let graphql_filter = create_graphql_filter();
+
+        // Create a new exercise.
+        let title = "Albatross";
+        let body = "Albatrosses, of the biological family Diomedeidae, are large seabirds related \
+                    to the procellariids, storm petrels, and diving petrels in the order \
+                    Procellariiformes (the tubenoses).";
+        let new_exercise = create_new_exercise(&graphql_filter, title, body);
+
+        // Read the new exercise.
+        let id = new_exercise.id.as_ref().unwrap();
+        let found_exercise = find_exercise_by_id(&graphql_filter, id);
+        assert_eq!(found_exercise, new_exercise);
+
+        // Update the new exercise.
+        let mut updated_exercise = found_exercise.clone();
+        updated_exercise.title = Some(String::from("The Amazing Albatross"));
+        let updated_exercise = update_exercise(&graphql_filter, updated_exercise);
+
+        // Delete the new exercise.
+        let deleted_exercise = delete_exercise_by_id(&graphql_filter, id);
+        assert_eq!(updated_exercise, deleted_exercise);
+        assert_exercise_not_found_by_id(&graphql_filter, id);
     }
 }
