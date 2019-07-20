@@ -1,6 +1,10 @@
 extern crate log;
 
+#[macro_use]
+extern crate serde_derive;
+
 use wikitype_api::graphql::{Context, Mutation, Query, Schema};
+use wikitype_api::openid_connect::{get_google_oauth2_certificate_der, IdToken};
 
 use dotenv::dotenv;
 use warp::{http::Response, Filter};
@@ -8,6 +12,9 @@ use warp::{http::Response, Filter};
 fn schema() -> Schema {
     Schema::new(Query, Mutation)
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Blah {}
 
 // TODO: Improve the endpoint structure / implementation.
 // NOTE: The current implementation is copied verbatim from the following juniper example.
@@ -34,8 +41,38 @@ fn main() {
 
     log::info!("Listening on 127.0.0.1:8080");
 
-    let state = warp::any().map(move || Context::new());
-    let graphql_filter = juniper_warp::make_graphql_filter(schema(), state.boxed());
+    let app_state = warp::any().map(move || Context::new());
+
+    let graphql_context_extractor = warp::any()
+        .and(warp::header::optional::<String>("authorization"))
+        .and(app_state)
+        .map(|auth_header: Option<String>, app_state: Context| {
+            if let Some(id_token) = auth_header {
+                let prefix = "Bearer ";
+                if id_token.starts_with(prefix) {
+                    let id_token = &id_token[prefix.len()..];
+                    let id_token: biscuit::jws::Compact<
+                        biscuit::ClaimsSet<IdToken>,
+                        biscuit::jws::Header<Blah>,
+                    > = biscuit::jws::Compact::new_encoded(id_token);
+                    let token_header = id_token.unverified_header().unwrap();
+                    println!("Header: {:#?}", token_header);
+                    let google_key = get_google_oauth2_certificate_der();
+                    let signature_algorithm = token_header.registered.algorithm;
+                    let id_token = id_token
+                        .into_decoded(&google_key, signature_algorithm)
+                        .unwrap();
+                    // TODO: id_token.validate
+                    let (_, id_token_claims): (_, biscuit::ClaimsSet<_>) =
+                        id_token.unwrap_decoded();
+                    println!("Claims: {:#?}", id_token_claims);
+                }
+            }
+            app_state
+        })
+        .boxed();
+
+    let graphql_filter = juniper_warp::make_graphql_filter(schema(), graphql_context_extractor);
 
     warp::serve(
         warp::get2()

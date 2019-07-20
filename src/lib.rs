@@ -8,6 +8,9 @@ extern crate juniper;
 #[macro_use]
 extern crate serde;
 
+#[macro_use]
+extern crate serde_derive;
+
 /// A basic [data access layer] for WikiType, including [data access objects] for a handful of SQL
 /// and NoSQL databases.
 ///
@@ -20,3 +23,6 @@ pub mod graphql;
 
 /// Database-agnostic models for WikiType data.
 pub mod models;
+
+/// OpenID Connect 1.0 ID Token deserialization and validation.
+pub mod openid_connect;
