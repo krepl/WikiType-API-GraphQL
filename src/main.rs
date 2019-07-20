@@ -4,7 +4,7 @@ extern crate log;
 extern crate serde_derive;
 
 use wikitype_api::graphql::{Context, Mutation, Query, Schema};
-use wikitype_api::openid_connect::{get_google_oauth2_certificate_der, IdToken};
+use wikitype_api::openid_connect::{get_google_oauth2_public_key, IdToken};
 
 use dotenv::dotenv;
 use warp::{http::Response, Filter};
@@ -57,7 +57,8 @@ fn main() {
                     > = biscuit::jws::Compact::new_encoded(id_token);
                     let token_header = id_token.unverified_header().unwrap();
                     println!("Header: {:#?}", token_header);
-                    let google_key = get_google_oauth2_certificate_der();
+                    let google_key =
+                        get_google_oauth2_public_key(&token_header.registered.key_id.unwrap());
                     let signature_algorithm = token_header.registered.algorithm;
                     let id_token = id_token
                         .into_decoded(&google_key, signature_algorithm)

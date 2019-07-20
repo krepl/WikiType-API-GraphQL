@@ -1,4 +1,4 @@
-pub fn get_google_oauth2_certificate_der() -> biscuit::jws::Secret {
+pub fn get_google_oauth2_public_key(key_id: &str) -> biscuit::jws::Secret {
     // TODO: replace by querying https://www.googleapis.com/oauth2/v1/certs
     // Can cache the latest certificate.
     //
@@ -21,9 +21,7 @@ pub fn get_google_oauth2_certificate_der() -> biscuit::jws::Secret {
 
     let jwks = future.wait().unwrap();
 
-    let public_key = jwks
-        .find("6e5508d27965ad7907c232212defa48ed763727e")
-        .unwrap();
+    let public_key = jwks.find(key_id).unwrap();
 
     match &public_key.algorithm {
         biscuit::jwk::AlgorithmParameters::RSA(key_params) => {
