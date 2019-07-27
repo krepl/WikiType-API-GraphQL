@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["database","A basic [data access layer] for WikiType, including [data access objects] for a handful of SQL and NoSQL databases."],["graphql","GraphQL types and resolvers."],["models","Database-agnostic models for WikiType data."]]});

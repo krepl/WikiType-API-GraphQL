@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["playground_source","Generate the HTML source to show a GraphQL Playground interface"]]});

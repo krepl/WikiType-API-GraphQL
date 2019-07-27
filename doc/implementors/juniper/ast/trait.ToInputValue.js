@@ -1,0 +1,10 @@
+(function() {var implementors = {};
+implementors["wikitype_api"] = [{text:"impl&lt;__S&gt; <a class=\"trait\" href=\"juniper/ast/trait.ToInputValue.html\" title=\"trait juniper::ast::ToInputValue\">ToInputValue</a>&lt;__S&gt; for <a class=\"struct\" href=\"wikitype_api/graphql/struct.NewExercise.html\" title=\"struct wikitype_api::graphql::NewExercise\">NewExercise</a> <span class=\"where fmt-newline\">where<br>&nbsp;&nbsp;&nbsp;&nbsp;__S: <a class=\"trait\" href=\"juniper/value/scalar/trait.ScalarValue.html\" title=\"trait juniper::value::scalar::ScalarValue\">ScalarValue</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a class=\"primitive\" href=\"https://doc.rust-lang.org/nightly/std/primitive.reference.html\">&amp;'__b </a>__S: <a class=\"trait\" href=\"juniper/value/scalar/trait.ScalarRefValue.html\" title=\"trait juniper::value::scalar::ScalarRefValue\">ScalarRefValue</a>&lt;'__b&gt;,&nbsp;</span>",synthetic:false,types:["wikitype_api::graphql::NewExercise"]},{text:"impl&lt;__S&gt; <a class=\"trait\" href=\"juniper/ast/trait.ToInputValue.html\" title=\"trait juniper::ast::ToInputValue\">ToInputValue</a>&lt;__S&gt; for <a class=\"struct\" href=\"wikitype_api/graphql/struct.UpdatedExercise.html\" title=\"struct wikitype_api::graphql::UpdatedExercise\">UpdatedExercise</a> <span class=\"where fmt-newline\">where<br>&nbsp;&nbsp;&nbsp;&nbsp;__S: <a class=\"trait\" href=\"juniper/value/scalar/trait.ScalarValue.html\" title=\"trait juniper::value::scalar::ScalarValue\">ScalarValue</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;<a class=\"primitive\" href=\"https://doc.rust-lang.org/nightly/std/primitive.reference.html\">&amp;'__b </a>__S: <a class=\"trait\" href=\"juniper/value/scalar/trait.ScalarRefValue.html\" title=\"trait juniper::value::scalar::ScalarRefValue\">ScalarRefValue</a>&lt;'__b&gt;,&nbsp;</span>",synthetic:false,types:["wikitype_api::graphql::UpdatedExercise"]},];
+
+            if (window.register_implementors) {
+                window.register_implementors(implementors);
+            } else {
+                window.pending_implementors = implementors;
+            }
+        
+})()

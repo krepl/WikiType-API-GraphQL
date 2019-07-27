@@ -1,0 +1,1 @@
+initSidebarItems({"attr":[["object","The `object` proc macro is the primary way of defining GraphQL resolvers that can not be implemented with the GraphQLObject derive."]],"derive":[["GraphQLEnum",""],["GraphQLInputObject",""],["GraphQLObject",""],["GraphQLScalarValue",""],["ScalarValue",""]]});
