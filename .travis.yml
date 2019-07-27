@@ -26,6 +26,7 @@ script:
 
 before_deploy:
   - mkdir public
+  - cp README.md public/
   - cp -r target/doc public/
 
 # GitHub Pages Deployment - https://docs.travis-ci.com/user/deployment/pages/
