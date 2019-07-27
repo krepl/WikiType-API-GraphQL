@@ -1,16 +1,20 @@
 language: rust
+rust: stable
+cache: cargo    # cache Cargo dependency build objects
 
-rust:
-  - stable
+os: linux
 
-os:
-  - linux
+# Databases and Services - https://docs.travis-ci.com/user/database-setup/
+services: postgresql
 
-services:
-  - postgresql
+# Job Lifecycle - https://docs.travis-ci.com/user/job-lifecycle
+#   2 main parts:
+#     1. install: install any dependencies required
+#     2. script: run the build script
 
 install:
-  - command -v diesel >/dev/null 2>&1 || cargo install diesel_cli
+  - function not_installed() { command -v "$1" >/dev/null 2>&1 && return 1 || return 0; }
+  - if not_installed diesel; then "cargo install diesel_cli"; fi
 
 before_script:
   - source .env
@@ -19,4 +23,16 @@ before_script:
 script:
   - cargo test
 
-cache: cargo    # cache Cargo packages
+after_success:
+  - cargo doc
+
+# GitHub Pages Deployment - https://docs.travis-ci.com/user/deployment/pages/
+deploy:
+  provider: pages
+  skip_cleanup: true
+  github_token: $GITHUB_TOKEN
+  local_dir: ./target/doc/
+  repo: krepl/krepl.github.io
+  keep_history: true
+  on:
+    branch: master
