@@ -3,6 +3,7 @@ use crate::database::sql::PgConnection;
 use crate::database::{ExerciseDao, IntoDatabaseError};
 use crate::models;
 use crate::models::{Exercise, NewExerciseBuilder, UpdatedExerciseBuilder};
+use crate::openid_connect::IdToken;
 
 use diesel::r2d2::{ConnectionManager, Pool};
 use std::env;
@@ -108,6 +109,7 @@ pub struct Context {
     // i.e.
     //     $ diesel migration run
     database_connection_pool: Pool<ConnectionManager<PgConnection>>,
+    user: Option<IdToken>,
 }
 
 impl Context {
@@ -117,7 +119,12 @@ impl Context {
         let database_connection_pool = Pool::builder().max_size(20).build(manager).unwrap();
         Context {
             database_connection_pool,
+            user: None,
         }
+    }
+
+    pub fn set_user(&mut self, user: IdToken) {
+        self.user = Some(user);
     }
 }
 

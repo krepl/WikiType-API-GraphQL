@@ -1,4 +1,4 @@
-pub fn get_google_oauth2_public_key(key_id: &str) -> biscuit::jws::Secret {
+pub fn get_google_oidc_client() -> oidc::Client {
     // TODO: replace by querying https://www.googleapis.com/oauth2/v1/certs
     // Can cache the latest certificate.
     //
@@ -13,25 +13,20 @@ pub fn get_google_oauth2_public_key(key_id: &str) -> biscuit::jws::Secret {
             let issuer = oidc::issuer::google();
             let config = oidc::discovery::discover(&http_client, issuer).unwrap();
             let jwks = oidc::discovery::jwks(&http_client, config.jwks_uri.clone()).unwrap();
-            jwks
+            let client_id =
+                "992435745595-0nfkbm10d47l5oob30at9pq7418lig0d.apps.googleusercontent.com"
+                    .to_string();
+            let redirect = reqwest::Url::parse("http://localhost:3000/redirect.html").unwrap();
+            let provider = oidc::discovery::Discovered(config);
+            let client = oidc::Client::new(client_id, String::default(), redirect, provider, jwks);
+            client
         })
     });
 
     use futures::future::Future;
 
-    let jwks = future.wait().unwrap();
-
-    let public_key = jwks.find(key_id).unwrap();
-
-    match &public_key.algorithm {
-        biscuit::jwk::AlgorithmParameters::RSA(key_params) => {
-            biscuit::jws::Secret::RSAModulusExponent {
-                n: key_params.n.clone(),
-                e: key_params.e.clone(),
-            }
-        }
-        _ => panic!(),
-    }
+    let client = future.wait().unwrap();
+    client
 }
 
 /// The primary extension that OpenID Connect makes to OAuth 2.0 to enable End-Users to be
@@ -43,7 +38,7 @@ pub fn get_google_oauth2_public_key(key_id: &str) -> biscuit::jws::Secret {
 ///
 /// See [ID Token](https://openid.net/specs/openid-connect-core-1_0.html#IDToken) and
 /// [Standard Claims](https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IdToken {
     /// Issuer Identifier.
     pub iss: String,
