@@ -52,9 +52,13 @@ impl IntoDatabaseError for DieselError {
 
 impl IntoDatabaseError for DieselConnectionError {
     fn into_database_error(self) -> Error {
-        match self {
-            e => Error::ServerError(Some(e.to_string())),
-        }
+        Error::ServerError(Some(self.to_string()))
+    }
+}
+
+impl IntoDatabaseError for r2d2::Error {
+    fn into_database_error(self) -> Error {
+        Error::ServerError(Some(self.to_string()))
     }
 }
 

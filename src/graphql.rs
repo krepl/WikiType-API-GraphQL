@@ -1,6 +1,6 @@
 use crate::database;
 use crate::database::sql::PgConnection;
-use crate::database::ExerciseDao;
+use crate::database::{ExerciseDao, IntoDatabaseError};
 use crate::models;
 use crate::models::{Exercise, NewExerciseBuilder, UpdatedExerciseBuilder};
 
@@ -100,23 +100,24 @@ impl UpdatedExercise {
 }
 
 /// Defines shared state for GraphQL resolvers (e.g. database connections).
+#[derive(Clone)]
 pub struct Context {
-    // Postgres connection pool.
-    //
     // NOTE: The database should already contain the `exercises` table. Otherwise, run the
     // migrations against the database.
     //
     // i.e.
     //     $ diesel migration run
-    pool: Pool<ConnectionManager<PgConnection>>,
+    database_connection_pool: Pool<ConnectionManager<PgConnection>>,
 }
 
 impl Context {
     pub fn new() -> Context {
         let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
         let manager = ConnectionManager::new(database_url);
-        let pool = Pool::builder().max_size(20).build(manager).unwrap();
-        Context { pool }
+        let database_connection_pool = Pool::builder().max_size(20).build(manager).unwrap();
+        Context {
+            database_connection_pool,
+        }
     }
 }
 
@@ -132,8 +133,8 @@ impl Query {
     }
 
     fn exercise(context: &Context, id: String) -> Result<Exercise, database::Error> {
-        let conn: &dyn ExerciseDao = &context.pool.get().unwrap();
-        let exercise = conn.find_by_id(&id)?;
+        let connection: &dyn ExerciseDao = &context.database_connection_pool.get().unwrap();
+        let exercise = connection.find_by_id(&id)?;
         Ok(exercise)
     }
 }
@@ -147,9 +148,9 @@ impl Mutation {
         context: &Context,
         new_exercise: NewExercise,
     ) -> Result<Exercise, database::Error> {
-        let conn: &dyn ExerciseDao = &executor.context().pool.get().unwrap();
+        let connection: &dyn ExerciseDao = &get_pooled_connection_from_executor(&executor)?;
         let new_exercise = new_exercise.to_new_exercise_model();
-        let exercise = conn.create(&new_exercise)?;
+        let exercise = connection.create(&new_exercise)?;
         Ok(exercise)
     }
 
@@ -157,17 +158,28 @@ impl Mutation {
         context: &Context,
         updated_exercise: UpdatedExercise,
     ) -> Result<Exercise, database::Error> {
-        let conn: &dyn ExerciseDao = &executor.context().pool.get().unwrap();
+        let connection: &dyn ExerciseDao = &get_pooled_connection_from_executor(&executor)?;
         let updated_exercise = updated_exercise.to_updated_exercise_model();
-        let exercise = conn.update(&updated_exercise)?;
+        let exercise = connection.update(&updated_exercise)?;
         Ok(exercise)
     }
 
     fn deleteExerciseById(context: &Context, id: String) -> Result<Exercise, database::Error> {
-        let conn: &dyn ExerciseDao = &executor.context().pool.get().unwrap();
-        let exercise = conn.delete_by_id(&id)?;
+        let connection: &dyn ExerciseDao = &get_pooled_connection_from_executor(&executor)?;
+        let exercise = connection.delete_by_id(&id)?;
         Ok(exercise)
     }
+}
+
+fn get_pooled_connection_from_executor(
+    executor: &juniper::Executor<Context>,
+) -> Result<r2d2::PooledConnection<ConnectionManager<PgConnection>>, database::Error> {
+    let connection = executor
+        .context()
+        .database_connection_pool
+        .get()
+        .map_err(IntoDatabaseError::into_database_error)?;
+    Ok(connection)
 }
 
 /// Type alias for `juniper::RootNode<...>` (needed when implementing a GraphQL endpoint).
